@@ -22,7 +22,8 @@ jobs:
       - run: npm install --include=dev
       - run: npm run compile
       - run: npm test
-      - run: npm version SNAPSHOT"-`date +"%Y-%b-%d-%I-%M"`"  --no-git-tag-version
+      #Fix this versioning for the snapshots
+      - run: npm version 2.8.0-SNAPSHOT"-`date +"%Y-%b-%d-%I-%M"`"  --no-git-tag-version
       - run: npm publish --tag SNAPSHOT
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
