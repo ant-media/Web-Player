@@ -22,7 +22,7 @@
   "author": "Ant Media",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ant-media/StreamApp.git"
+    "url": "git+https://github.com/ant-media/Web-Player.git"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
