@@ -20,8 +20,8 @@ jobs:
         id: get_version
         run: echo "VERSION=$(echo ${GITHUB_REF##*/} | cut -d v -f 2)" >> $GITHUB_OUTPUT
       - run: npm install --include=dev
-      - run: npm test
       - run: npm run compile
+      - run: npm test
       - run: npm version SNAPSHOT"-`date +"%Y-%b-%d-%I-%M"`"  --no-git-tag-version
       - run: npm publish --tag SNAPSHOT
         env:
