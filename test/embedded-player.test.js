@@ -45,8 +45,8 @@ describe("WebPlayer", function() {
 	      //the following is a test autoPlay is still true in mobile. We just try to play the stream if mobile browser can play or not
 		  //in autoPlay mode 
 	      expect(player.autoPlay).to.true;
-	      expect(player.mute).to.true;
-	      expect(player.isMuted()).to.be.true;
+	      expect(player.mute).to.false;
+	      expect(player.isMuted()).to.be.false;
 	      expect(player.targetLatency).to.equal(3);
 	      expect(player.subscriberId).to.be.null;
 	      expect(player.subscriberCode).to.be.null;

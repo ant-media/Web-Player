@@ -714,8 +714,12 @@ export class WebPlayer {
 
         if (this.autoPlay) {
             this.videojsPlayer.play().catch((e) => {
-				 Logger.warn("Problem in playback. The error is " + e);
-			});
+                if (e.name === "NotAllowedError") {
+                    this.videojsPlayer.muted(true);
+                    this.videojsPlayer.play();
+                }
+                Logger.warn("Problem in playback. The error is " + e);
+            });
         }
     }
 
