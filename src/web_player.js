@@ -78,11 +78,10 @@ export class WebPlayer {
     autoPlay = true;
 
     /**
-     * mute: if true, player will be started muted. Optional. Default value is true.
-     * default value is true because of browser's autoplay policy.
+     * mute: if true, player will be started muted. Optional. Default value is false.
      * It will be taken from url parameter "mute".
      */
-    mute = true;
+    mute = false;
 
     /**
      * targetLatency: target latency in seconds. Optional. Default value is 3.
@@ -288,7 +287,7 @@ export class WebPlayer {
         this.playType = WebPlayer.DEFAULT_PLAY_TYPE;
         this.token = null;
         this.autoPlay = true;
-        this.mute = true;
+        this.mute = false;
         this.targetLatency = 3;
         this.subscriberId = null;
         this.subscriberCode = null;

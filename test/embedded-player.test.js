@@ -45,8 +45,8 @@ describe("WebPlayer", function() {
 	      //the following is a test autoPlay is still true in mobile. We just try to play the stream if mobile browser can play or not
 		  //in autoPlay mode 
 	      expect(player.autoPlay).to.true;
-	      expect(player.mute).to.false;
-	      expect(player.isMuted()).to.be.false;
+	      expect(player.mute).to.true;
+	      expect(player.isMuted()).to.be.true;
 	      expect(player.targetLatency).to.equal(3);
 	      expect(player.subscriberId).to.be.null;
 	      expect(player.subscriberCode).to.be.null;
@@ -59,7 +59,7 @@ describe("WebPlayer", function() {
 	      
 	     
 	        	      
-    
+
     });
     
     it("Check url parameters", async function() {
@@ -747,6 +747,31 @@ describe("WebPlayer", function() {
 		
 
 	});
+
+	it("testAutoPlay",async function(){
+		var videoContainer = document.createElement("video_container");
+
+		var placeHolder = document.createElement("place_holder");
+
+		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/"  };
+		var windowComponent = {
+			location: locationComponent,
+			document: document,
+			addEventListener: window.addEventListener
+		};
+
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+		player.play();
+
+		function mockPlayBlocked() {
+		    return Promise.reject({ name: "NotAllowedError" });
+		}
+	    
+		var playMethod = sinon.replace(player.videojsPlayer, "play", sinon.fake(mockPlayBlocked()));
+
+		expect(playMethod.calledOnce).to.be.true;
+
+	})
 	
 	
 	it("webrtc-info-event", async function() {
