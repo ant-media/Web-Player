@@ -127,8 +127,8 @@ describe("WebPlayer", function() {
 		  //the following is a test autoPlay is still true in mobile. We just try to play the stream if mobile browser can play or not
 		  //in autoPlay mode 
 		expect(player.autoPlay).to.true;
-		expect(player.mute).to.true;
-		expect(player.isMuted()).to.be.true;
+		expect(player.mute).to.false;
+		expect(player.isMuted()).to.be.false;
 		expect(player.targetLatency).to.equal(3);
 		expect(player.subscriberId).to.be.null;
 		expect(player.subscriberCode).to.be.null;
@@ -750,27 +750,46 @@ describe("WebPlayer", function() {
 
 	it("testAutoPlay",async function(){
 		var videoContainer = document.createElement("video_container");
-
+		  
 		var placeHolder = document.createElement("place_holder");
+		  			
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/" };
+		var windowComponent = {  location : locationComponent,
+		  						  document:  document,
+		  						  addEventListener: window.addEventListener};
+		  						  		 	      
+	    var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+	    let vjsMock = videojs(WebPlayer.VIDEO_PLAYER_ID, {
+			poster: "test",
+            liveui:true ,
+            liveTracker: {
+                trackingThreshold: 0
+            },
+            html5: {
+                vhs: {
+                    limitRenditionByPlayerDimensions: false
+                }
+            },
+            controls: true,
+            class: 'video-js vjs-default-skin vjs-big-play-centered',
+            muted: false,
+            preload: "auto",
+            autoplay: true
+		});
 
-		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/"  };
-		var windowComponent = {
-			location: locationComponent,
-			document: document,
-			addEventListener: window.addEventListener
-		};
+		const mockVideoJS = sinon.stub(window, 'videojs').callsFake(()=>{return vjsMock});
+	    var muted = sinon.replace(vjsMock, "muted", sinon.fake());
+		let play = sinon.stub(vjsMock, 'play').callsFake(()=>{
+			return Promise.reject(new DOMException("NotAllowedError","NotAllowedError"));
+		});
 
-		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
-		player.play();
 
-		function mockPlayBlocked() {
-		    return Promise.reject({ name: "NotAllowedError" });
-		}
-	    
-		var playMethod = sinon.replace(player.videojsPlayer, "play", sinon.fake(mockPlayBlocked()));
+		await player.playIfExists("webrtc");
 
-		expect(playMethod.calledOnce).to.be.true;
+		expect(play.calledTwice).to.be.true;
+	    expect(muted.calledWithMatch(true)).to.be.true;
 
+		sinon.restore();		
 	})
 	
 	
