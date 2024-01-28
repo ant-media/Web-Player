@@ -780,15 +780,26 @@ describe("WebPlayer", function() {
 		const mockVideoJS = sinon.stub(window, 'videojs').callsFake(()=>{return vjsMock});
 	    var muted = sinon.replace(vjsMock, "muted", sinon.fake());
 		let play = sinon.stub(vjsMock, 'play').callsFake(()=>{
-			return Promise.reject(new DOMException("NotAllowedError","NotAllowedError"));
+			return Promise.resolve();
 		});
 
 
 		await player.playIfExists("webrtc");
 
+		expect(play.calledOnce).to.be.true;
+	    expect(muted.notCalled).to.be.true;
+		
+		play.restore();
+
+		play = sinon.stub(vjsMock, 'play').callsFake(()=>{
+			return Promise.reject(new DOMException("NotAllowedError","NotAllowedError"));
+		});
+
+		await player.playIfExists("webrtc");
+
 		expect(play.calledTwice).to.be.true;
 	    expect(muted.calledWithMatch(true)).to.be.true;
-
+		
 		sinon.restore();		
 	})
 	
