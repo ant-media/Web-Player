@@ -1,6 +1,6 @@
 {
   "name": "@antmedia/web_player",
-  "version": "2.8.0-SNAPSHOT-Jan-22-2024-1548",
+  "version": "2.8.0-SNAPSHOT-Jan-29-2024-2339",
   "description": "Ant Media Server Player that can play WebRTC, HLS, DASH",
   "main": "dist/index.js",
   "module": "dist/es/index.js",
