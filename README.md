@@ -20,6 +20,57 @@ Install the Web Player package using npm:
 npm i @antmedia/web_player
 ```
 
+## Usage
+
+### Basic Usage
+
+To use the Web Player, import it and initialize it with the parameters received from the URL. Refer to the Configuration Parameters section below for more details.
+
+1. In your web application, create a div with the id video_container. This will serve as the container for the player.
+
+  ```
+  <div id="video_container" ></div>
+  ````
+  
+2. Initialize the player as follows:
+  ```javascript
+  import { WebPlayer } from "@antmedia/web_player";
+
+  var embeddedPlayer = new WebPlayer(window, document.getElementById("video_container"), null);
+
+  embeddedPlayer.initialize().then(() => {
+    embeddedPlayer.play();
+  });
+  ```
+
+The sample for this usage is available in [play.html in StreamApp](https://github.com/ant-media/StreamApp/blob/master/src/main/webapp/play.html)
+
+### Advanced Usage
+Alternatively, you can pass the parameters as an object to the WebPlayer constructor.
+
+
+1. In your web application, create a div with the id video_container. This will serve as the container for the player.
+  ```
+  <div id="video_container" ></div>
+  ````
+
+2. Initialize the player as follows
+  ```javascript
+  var player = new WebPlayer({
+    streamId: "myStreamId",
+    httpBaseURL: "http://example.antmedia.io:5080/WebRTCAppEE/", //Remember to add trailing slash(/)
+  }, document.getElementById("video_container"), null);
+
+  player.initialize().then(() => {
+    player.play();
+  }).catch((error) => {
+    console.error("Error while initializing embedded player: " + error);
+  });
+  ```
+
+The sample for this usage is available in [app.page.component.ts in Ant-Media-Management-Console](https://github.com/ant-media/Ant-Media-Management-Console/blob/master/src/app/app.page/app.page.component.ts)
+
+
 ## Configuration Parameters
 
 The player accepts several configuration parameters, either through the URL or directly in the code:
@@ -32,45 +83,6 @@ The player accepts several configuration parameters, either through the URL or d
 6. `playType` (String): The order of play types used for playing. Optional. Default value is `"mp4,webm"`. Possible values include `"webm,mp4"`, `"mp4"`, `"webm"`, `"mov"`.
 7. `targetLatency` (Number): The target latency for the DASH player. Optional. Default value is `3`.
 8. `is360` (Boolean): Enable playback in 360 mode. Optional. Default value is `false`.
-
-## Usage
-
-### Basic Usage
-
-Import the `WebPlayer` and initialize it with the desired configuration:
-
-```javascript
-import { WebPlayer } from "@antmedia/web_player";
-
-var embeddedPlayer = new WebPlayer(window, document.getElementById("video_container"), document.getElementById("video_info"));
-
-embeddedPlayer.initialize().then(() => {
-    embeddedPlayer.play();
-});
-```
-
-The sample for this usage is available in [play.html in StreamApp](https://github.com/ant-media/StreamApp/blob/master/src/main/webapp/play.html)
-
-### Advanced Usage
-You can also pass the parameters as an object to the WebPlayer constructor:
-
-```javascript
-var player = new WebPlayer({
-    streamId: streamId,
-    httpBaseURL: "http://example.antmedia.io:5080/WebRTCAppEE",
-    token: tokenId,
-    playOrder: ["webrtc", "hls", "dash"],
-    videoHTMLContent: '<video id="video-player" class="video-js vjs-default-skin vjs-big-play-centered" controls playsinline style="width:100%;height:100%"></video>',
-}, document.getElementById("video_container"), null);
-
-player.initialize().then(() => {
-    player.play();
-}).catch((error) => {
-    console.error("Error while initializing embedded player: " + error);
-});
-```
-
-The sample for this usage is available in [app.page.component.ts in Ant-Media-Management-Console](https://github.com/ant-media/Ant-Media-Management-Console/blob/master/src/app/app.page/app.page.component.ts)
 
 
 ## Support
