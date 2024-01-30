@@ -578,6 +578,7 @@ export class WebPlayer {
         });
 
         this.videojsPlayer.on('error', (e) => {
+            Logger.warn("There is an error in playback: ", e);
             // We need to add this kind of check. If we don't add this kind of checkpoint, it will create an infinite loop
             if (!this.errorCalled) {
                 this.errorCalled = true;
