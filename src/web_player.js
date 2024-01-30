@@ -201,7 +201,14 @@ export class WebPlayer {
         }
         
         this.containerElement = containerElement;
+        if (this.containerElement.style && this.containerElement.style.display != "") {
+            this.containerElementInitialDisplay = this.containerElement.style.display;
+        }
         this.placeHolderElement = placeHolderElement;
+
+        if (this.placeHolderElement && this.placeHolderElement.style && this.placeHolderElement.style.display != "") {
+            this.placeHolderElementInitialDisplay = this.placeHolderElement.style.display;
+        }
 		
 		if (this.streamId == null) {
             var message = "Stream id is not set.Please add your stream id to the url as a query parameter such as ?id={STREAM_ID} to the url"
@@ -213,24 +220,41 @@ export class WebPlayer {
         
         if (!this.httpBaseURL) 
         {
-         	let appName = this.window.location.pathname.substring(0, this.window.location.pathname.lastIndexOf("/") + 1);
-			let path = this.window.location.hostname + ":" + this.window.location.port + appName + this.streamId + ".webrtc";
-		    this.websocketURL = "ws://" + path;
+            //this is the case where web player gets everything from url
+            let appName = "/";
+            if (this.window.location.pathname && this.window.location.pathname.indexOf("/") != -1) {
+         	    appName = this.window.location.pathname.substring(0, this.window.location.pathname.lastIndexOf("/") + 1);
+            }
+			let path = this.window.location.hostname;
+            if (this.window.location.port != "") {
+                path += ":" + this.window.location.port;
+            }
+            if (!appName.startsWith("/")) {
+                appName = "/" + appName;
+            }
+
+            if (!appName.endsWith("/")) 
+            {
+                appName += "/";
+            }
+            path += appName 
+
+            this.httpBaseURL = location.protocol + "//" + path;
+		    this.websocketURL = "ws://" + path + this.streamId + ".webrtc";
 		
 		    if (location.protocol.startsWith("https")) {
-		        this.websocketURL = "wss://" + path;
+		        this.websocketURL.replace("ws", "wss");
 		    }
 	
-	        this.httpBaseURL = location.protocol + "//" + this.window.location.hostname + ":" + this.window.location.port + appName;
         }
         else if (!this.websocketURL) 
         {
+            //this is the case where web player gets inputs from config object
+            if (!this.httpBaseURL.endsWith("/")) {
+                this.httpBaseURL += "/";
+            }
+
 			this.websocketURL = this.httpBaseURL.replace("http", "ws");
-			
-			if (!this.websocketURL.endsWith("/")) {
-				this.websocketURL += "/";
-			}
-			
 			this.websocketURL += this.streamId + ".webrtc"; 
 		}
 
@@ -310,6 +334,8 @@ export class WebPlayer {
         this.videoPlayerId = "video-player";
         this.videojsLoaded = false;
         this.dashjsLoaded = false;
+        this.containerElementInitialDisplay = "block";
+        this.placeHolderElementInitialDisplay = "block";
     }
     
     initializeFromUrlParams() {
@@ -434,9 +460,9 @@ export class WebPlayer {
      * @param {boolean} visible
      */
     setPlayerVisible(visible) {
-        this.containerElement.style.display = visible ? "block" : "none";
+        this.containerElement.style.display = visible ? this.containerElementInitialDisplay : "none";
         if (this.placeHolderElement) {
-        	this.placeHolderElement.style.display = visible ? "none" : "block";
+        	this.placeHolderElement.style.display = visible ? "none" : this.placeHolderElementInitialDisplay;
         }
 
         if (this.is360) {
