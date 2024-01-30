@@ -45,8 +45,8 @@ describe("WebPlayer", function() {
 	      //the following is a test autoPlay is still true in mobile. We just try to play the stream if mobile browser can play or not
 		  //in autoPlay mode 
 	      expect(player.autoPlay).to.true;
-	      expect(player.mute).to.true;
-	      expect(player.isMuted()).to.be.true;
+	      expect(player.mute).to.false;
+	      expect(player.isMuted()).to.be.false;
 	      expect(player.targetLatency).to.equal(3);
 	      expect(player.subscriberId).to.be.null;
 	      expect(player.subscriberCode).to.be.null;
@@ -56,16 +56,10 @@ describe("WebPlayer", function() {
 	      expect(player.errorCalled).to.false;
 	      
 	      expect(player.getSecurityQueryParams()).to.be.equal("");
-	      
-	     
-	        	      
-
     });
     
     it("Check url parameters", async function() {
 		
-		
-
 		  var videoContainer = document.createElement("video_container");
 		  
 		  var placeHolder = document.createElement("place_holder");
@@ -77,7 +71,7 @@ describe("WebPlayer", function() {
 		  							 pathname:"/", 
 		  							 search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
 		  								"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false"
-		  								
+									, hostname:"example.com", port:""	
 		  								
 		  							 };
 		  var windowComponent = { location : locationComponent,
@@ -99,10 +93,29 @@ describe("WebPlayer", function() {
 	      expect(player.containerElement).to.equal(videoContainer);
 	      expect(player.placeHolderElement).to.equal(placeHolder);
 	      expect(player.iceConnected).to.false;
-	      expect(player.errorCalled).to.false;	
-	      
+	      expect(player.errorCalled).to.false;
+
+		  expect(player.websocketURL).to.be.equal('ws://example.com/stream123.webrtc');
+		  expect(player.httpBaseURL).to.be.equal('http://example.com/');
 	      expect(player.getSecurityQueryParams()).to.be.equal("&token="+token+"&subscriberId="+subscriberId+"&subscriberCode="+subscriberCode);      
     
+
+		  {
+			locationComponent =  {  href : 'http://example.com?id=stream123', 
+				search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
+				"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false"
+				, hostname:"example.com", port:""	 
+			};
+			windowComponent = { location : locationComponent,
+				document:  document};
+
+			player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+			expect(player.websocketURL).to.be.equal('ws://example.com/stream123.webrtc');
+			expect(player.httpBaseURL).to.be.equal('http://example.com/');
+
+
+		  }
     });
     
     it("CheckConfigParameters", async function(){
@@ -170,7 +183,7 @@ describe("WebPlayer", function() {
 		expect(player.subscriberId).to.be.equal('subscriberId');
 		expect(player.subscriberCode).to.be.equal('subscriberCode');
 		
-		expect(player.httpBaseURL).to.be.equal('http://example.antmedia.io:5080/WebRTCAppEE');
+		expect(player.httpBaseURL).to.be.equal('http://example.antmedia.io:5080/WebRTCAppEE/');
 		
 		expect(player.websocketURL).to.be.equal('ws://example.antmedia.io:5080/WebRTCAppEE/streamConfig123.webrtc');
 		
@@ -782,10 +795,7 @@ describe("WebPlayer", function() {
 		let play = sinon.stub(vjsMock, 'play').callsFake(()=>{
 			return Promise.resolve();
 		});
-
-
-		await player.playIfExists("webrtc");
-
+		await player.playIfExists("webrtc");  // autoplay worked with audio
 		expect(play.calledOnce).to.be.true;
 	    expect(muted.notCalled).to.be.true;
 		
@@ -794,8 +804,20 @@ describe("WebPlayer", function() {
 		play = sinon.stub(vjsMock, 'play').callsFake(()=>{
 			return Promise.reject(new DOMException("NotAllowedError","NotAllowedError"));
 		});
+		player.forcePlayWithAudio = true;
 
-		await player.playIfExists("webrtc");
+		await player.playIfExists("webrtc");  // autoplay failed force play with audio 
+		expect(play.calledOnce).to.be.true;
+	    expect(muted.notCalled).to.be.true;
+			
+		play.restore();
+
+
+		play = sinon.stub(vjsMock, 'play').callsFake(()=>{
+			return Promise.reject(new DOMException("NotAllowedError","NotAllowedError"));
+		});
+		player.forcePlayWithAudio = false;
+		await player.playIfExists("webrtc");  // autoplay failed try to play without audio
 
 		expect(play.calledTwice).to.be.true;
 	    expect(muted.calledWithMatch(true)).to.be.true;

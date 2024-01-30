@@ -78,16 +78,22 @@ export class WebPlayer {
     autoPlay = true;
 
     /**
-     * mute: if true, player will be started muted. Optional. Default value is false.
+     * mute: if false the player will try to auto play the stream with audio if it fails player will mute the audio and try again to autoplay it.
      * It will be taken from url parameter "mute".
      */
     mute = false;
+
+    /**
+     * Force the Player to play with audio Auto Play might not work.
+     */
+    forcePlayWithAudio = false;
 
     /**
      * targetLatency: target latency in seconds. Optional. Default value is 3.
      * It will be taken from url parameter "targetLatency".
      * It's used for dash(cmaf) playback.
      */
+    
     targetLatency = 3;
 
     /**
@@ -160,6 +166,7 @@ export class WebPlayer {
      */
     tryNextTechTimer;
 
+
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
 		WebPlayer.DEFAULT_PLAY_ORDER = ["webrtc", "hls"];;
@@ -200,7 +207,14 @@ export class WebPlayer {
         }
         
         this.containerElement = containerElement;
+        if (this.containerElement.style && this.containerElement.style.display != "") {
+            this.containerElementInitialDisplay = this.containerElement.style.display;
+        }
         this.placeHolderElement = placeHolderElement;
+
+        if (this.placeHolderElement && this.placeHolderElement.style && this.placeHolderElement.style.display != "") {
+            this.placeHolderElementInitialDisplay = this.placeHolderElement.style.display;
+        }
 		
 		if (this.streamId == null) {
             var message = "Stream id is not set.Please add your stream id to the url as a query parameter such as ?id={STREAM_ID} to the url"
@@ -212,24 +226,41 @@ export class WebPlayer {
         
         if (!this.httpBaseURL) 
         {
-         	let appName = this.window.location.pathname.substring(0, this.window.location.pathname.lastIndexOf("/") + 1);
-			let path = this.window.location.hostname + ":" + this.window.location.port + appName + this.streamId + ".webrtc";
-		    this.websocketURL = "ws://" + path;
+            //this is the case where web player gets everything from url
+            let appName = "/";
+            if (this.window.location.pathname && this.window.location.pathname.indexOf("/") != -1) {
+         	    appName = this.window.location.pathname.substring(0, this.window.location.pathname.lastIndexOf("/") + 1);
+            }
+			let path = this.window.location.hostname;
+            if (this.window.location.port != "") {
+                path += ":" + this.window.location.port;
+            }
+            if (!appName.startsWith("/")) {
+                appName = "/" + appName;
+            }
+
+            if (!appName.endsWith("/")) 
+            {
+                appName += "/";
+            }
+            path += appName 
+
+            this.httpBaseURL = location.protocol + "//" + path;
+		    this.websocketURL = "ws://" + path + this.streamId + ".webrtc";
 		
 		    if (location.protocol.startsWith("https")) {
-		        this.websocketURL = "wss://" + path;
+		        this.websocketURL.replace("ws", "wss");
 		    }
 	
-	        this.httpBaseURL = location.protocol + "//" + this.window.location.hostname + ":" + this.window.location.port + appName;
         }
         else if (!this.websocketURL) 
         {
+            //this is the case where web player gets inputs from config object
+            if (!this.httpBaseURL.endsWith("/")) {
+                this.httpBaseURL += "/";
+            }
+
 			this.websocketURL = this.httpBaseURL.replace("http", "ws");
-			
-			if (!this.websocketURL.endsWith("/")) {
-				this.websocketURL += "/";
-			}
-			
 			this.websocketURL += this.streamId + ".webrtc"; 
 		}
 
@@ -309,6 +340,9 @@ export class WebPlayer {
         this.videoPlayerId = "video-player";
         this.videojsLoaded = false;
         this.dashjsLoaded = false;
+        this.containerElementInitialDisplay = "block";
+        this.placeHolderElementInitialDisplay = "block";
+        this.forcePlayWithAudio = false;
     }
     
     initializeFromUrlParams() {
@@ -338,11 +372,11 @@ export class WebPlayer {
 		
 	    let muteLocal = getUrlParameter("mute", this.window.location.search);
 		if (muteLocal === "false") {
-			this.mute = false;
-		}
-		else {
-			this.mute = true;
-		}
+			this.forcePlayWithAudio = true;
+		}else if(muteLocal === "true"){
+            this.mute = true;
+        }
+        
 		
 		let localTargetLatency = getUrlParameter("targetLatency", this.window.location.search);
 	    if (localTargetLatency != null) {
@@ -433,9 +467,9 @@ export class WebPlayer {
      * @param {boolean} visible
      */
     setPlayerVisible(visible) {
-        this.containerElement.style.display = visible ? "block" : "none";
+        this.containerElement.style.display = visible ? this.containerElementInitialDisplay : "none";
         if (this.placeHolderElement) {
-        	this.placeHolderElement.style.display = visible ? "none" : "block";
+        	this.placeHolderElement.style.display = visible ? "none" : this.placeHolderElementInitialDisplay;
         }
 
         if (this.is360) {
@@ -544,7 +578,6 @@ export class WebPlayer {
         });
 
         this.videojsPlayer.on('error', (e) => {
-            Logger.warn("There is an error in playback: ", e);
             // We need to add this kind of check. If we don't add this kind of checkpoint, it will create an infinite loop
             if (!this.errorCalled) {
                 this.errorCalled = true;
@@ -713,7 +746,7 @@ export class WebPlayer {
 
         if (this.autoPlay) {
             this.videojsPlayer.play().catch((e) => {
-                if (e.name === "NotAllowedError") {
+                if (e.name === "NotAllowedError" && !this.forcePlayWithAudio && !this.mute) {
                     this.videojsPlayer.muted(true);
                     this.videojsPlayer.play();
                 }
