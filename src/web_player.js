@@ -239,11 +239,11 @@ export class WebPlayer {
             }
             path += appName 
 
-            this.httpBaseURL = location.protocol + "//" + path;
+            this.httpBaseURL = this.window.location.protocol + "//" + path;
 		    this.websocketURL = "ws://" + path + this.streamId + ".webrtc";
 		
-		    if (location.protocol.startsWith("https")) {
-		        this.websocketURL.replace("ws", "wss");
+		    if (this.window.location.protocol.startsWith("https")) {
+                this.websocketURL = this.websocketURL.replace("ws", "wss");
 		    }
 	
         }
