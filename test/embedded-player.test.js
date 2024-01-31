@@ -29,7 +29,7 @@ describe("WebPlayer", function() {
 		  
 		  var placeHolder = document.createElement("place_holder");
 		  			
-		  var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" };
+		  var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
 		  var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		 	      
@@ -57,6 +57,30 @@ describe("WebPlayer", function() {
 	      
 	      expect(player.getSecurityQueryParams()).to.be.equal("");
     });
+
+	it("checkWebsocketURLIfSecure", async function() {
+		var videoContainer = document.createElement("video_container");
+		  
+		var placeHolder = document.createElement("place_holder");
+
+		var token = "this_is_the_token";
+		var subscriberId = "this_is_subscriber_id";
+		var subscriberCode = "this_is_subscriber_id_subscriberCode"
+		var locationComponent =  { 	href : 'https://example.com?id=stream123', 
+									pathname:"/", 
+									search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
+										"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false", 
+									hostname:"example.com", 
+									port:"", 
+									protocol:"https:"
+								};
+		var windowComponent = { location : locationComponent,
+										document:  document};
+
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+		expect(player.websocketURL).to.be.equal('wss://example.com/stream123.webrtc');
+	});
     
     it("Check url parameters", async function() {
 		
@@ -71,7 +95,7 @@ describe("WebPlayer", function() {
 		  							 pathname:"/", 
 		  							 search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
 		  								"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false"
-									, hostname:"example.com", port:""	
+									, hostname:"example.com", port:"", protocol:"http:"	
 		  								
 		  							 };
 		  var windowComponent = { location : locationComponent,
@@ -104,7 +128,7 @@ describe("WebPlayer", function() {
 			locationComponent =  {  href : 'http://example.com?id=stream123', 
 				search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
 				"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false"
-				, hostname:"example.com", port:""	 
+				, hostname:"example.com", port:""	, protocol:"http:"
 			};
 			windowComponent = { location : locationComponent,
 				document:  document};
@@ -246,7 +270,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  
-		var locationComponent =  { href : 'http://example.com', search: "", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com', search: "", pathname:"/" , protocol:"http:"};
 		var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		try {
@@ -258,7 +282,7 @@ describe("WebPlayer", function() {
 			//expected because there is no stream id
 		}
 		
-		var locationComponent =  { href : 'http://example.com?name=stream123', search: "?name=stream123", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?name=stream123', search: "?name=stream123", pathname:"/", protocol:"http:" };
 		var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		  						  
@@ -275,7 +299,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123" , pathname:"/", hostname:"example.antmedia.io", port:"5080"};
+		var locationComponent =  { href : 'http://example.com?id=stream123', protocol:"http:", search: "?id=stream123" , pathname:"/", hostname:"example.antmedia.io", port:"5080"};
 		var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		 	      
@@ -332,7 +356,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/", protocol:"http:" };
 		var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		 	      
@@ -375,7 +399,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
 		var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		 	      
@@ -397,7 +421,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
 		var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		 	      
@@ -444,7 +468,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/", protocol:"http:" };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -463,7 +487,7 @@ describe("WebPlayer", function() {
 	    expect(playIfExists.callCount).to.be.equal(1);
 	    sinon.restore();
 	    
-	    var locationComponent =  { href : 'http://example.com?id=streams/stream123.mp4', search: "?id=streams/stream123.mp4", pathname:"/", hostname:"example.antmedia.io", port:"5080" };
+	    var locationComponent =  { href : 'http://example.com?id=streams/stream123.mp4', protocol:"http:", search: "?id=streams/stream123.mp4", pathname:"/", hostname:"example.antmedia.io", port:"5080" };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -486,7 +510,7 @@ describe("WebPlayer", function() {
 		
 		
 		sinon.restore();
-		var locationComponent =  { href : 'http://example.com?id=streams/stream123/stream123.mpd', search: "?id=streams/stream123/stream123.mpd", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?id=streams/stream123/stream123.mpd', protocol:"http:", search: "?id=streams/stream123/stream123.mpd", pathname:"/" };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -501,7 +525,7 @@ describe("WebPlayer", function() {
 	
 	it("makeVideoJSVisibleWhenInitialized", async function() 
 	{
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -535,7 +559,7 @@ describe("WebPlayer", function() {
 	
 	it("makeDashPlayerVisibleWhenInitialized", async function() 
 	{
-		var locationComponent =  { href : 'http://example.com?id=streams/stream123/stream123.mpd', search: "?id=streams/stream123/stream123.mpd&playOrder=dash", pathname:"/" };
+		var locationComponent =  { href : 'http://example.com?id=streams/stream123/stream123.mpd', search: "?id=streams/stream123/stream123.mpd&playOrder=dash", pathname:"/", protocol:"http:" };	
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -567,7 +591,9 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname: "/", hostname:"example.com", port:5080 };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname: "/", 
+									hostname:"example.com", port:5080,
+									protocol:"http:" };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  };
@@ -587,7 +613,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname: "/", hostname:"example.com", port:5080 };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  protocol:"http:", pathname: "/", hostname:"example.com", port:5080 };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  };
@@ -660,7 +686,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4" , pathname:"/"};
+		var locationComponent =  { href : 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4" , pathname:"/", protocol:"http:" };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -677,7 +703,7 @@ describe("WebPlayer", function() {
 	    
 	    sinon.restore();
 	    
-	    locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname:"/" };
+	    locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname:"/" , protocol:"http:"};
 	    windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -699,7 +725,7 @@ describe("WebPlayer", function() {
 
 		var placeHolder = document.createElement("place_holder");
 
-		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/"  };
+		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:"  };
 		var windowComponent = {
 			location: locationComponent,
 			document: document,
@@ -766,7 +792,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/" };
+		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:"  };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -832,7 +858,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/" };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/", protocol:"http:" };
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -863,7 +889,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/" };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/" , protocol:"http:"};
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  addEventListener: window.addEventListener};
@@ -890,7 +916,7 @@ describe("WebPlayer", function() {
 		var videoPlayer = document.createElement("video");
 		videoPlayer.id = WebPlayer.VIDEO_PLAYER_ID;
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname: "/", hostname:"example.com", port:5080 };
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname: "/", hostname:"example.com", port:5080 , protocol:"http:"};
 		var windowComponent = {  location : locationComponent,
 		  						  document:  document,
 		  						  };
