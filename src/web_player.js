@@ -78,17 +78,22 @@ export class WebPlayer {
     autoPlay = true;
 
     /**
-     * mute: if true, player will be started muted. Optional. Default value is true.
-     * default value is true because of browser's autoplay policy.
+     * mute: if false the player will try to auto play the stream with audio if it fails player will mute the audio and try again to autoplay it.
      * It will be taken from url parameter "mute".
      */
-    mute = true;
+    mute = false;
+
+    /**
+     * Force the Player to play with audio Auto Play might not work.
+     */
+    forcePlayWithAudio = false;
 
     /**
      * targetLatency: target latency in seconds. Optional. Default value is 3.
      * It will be taken from url parameter "targetLatency".
      * It's used for dash(cmaf) playback.
      */
+    
     targetLatency = 3;
 
     /**
@@ -160,6 +165,7 @@ export class WebPlayer {
      * Field to keep if tryNextMethod is already called
      */
     tryNextTechTimer;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -312,7 +318,7 @@ export class WebPlayer {
         this.playType = WebPlayer.DEFAULT_PLAY_TYPE;
         this.token = null;
         this.autoPlay = true;
-        this.mute = true;
+        this.mute = false;
         this.targetLatency = 3;
         this.subscriberId = null;
         this.subscriberCode = null;
@@ -336,6 +342,7 @@ export class WebPlayer {
         this.dashjsLoaded = false;
         this.containerElementInitialDisplay = "block";
         this.placeHolderElementInitialDisplay = "block";
+        this.forcePlayWithAudio = false;
     }
     
     initializeFromUrlParams() {
@@ -365,11 +372,13 @@ export class WebPlayer {
 		
 	    let muteLocal = getUrlParameter("mute", this.window.location.search);
 		if (muteLocal === "false") {
-			this.mute = false;
-		}
-		else {
-			this.mute = true;
-		}
+            this.mute = false;
+            //user specifically asks to play with audio so if it fails in auto play, it will not try to play without audio
+			this.forcePlayWithAudio = true;
+		}else if(muteLocal === "true"){
+            this.mute = true;
+        }
+        
 		
 		let localTargetLatency = getUrlParameter("targetLatency", this.window.location.search);
 	    if (localTargetLatency != null) {
@@ -739,9 +748,19 @@ export class WebPlayer {
         });
 
         if (this.autoPlay) {
+            //try to play directly
             this.videojsPlayer.play().catch((e) => {
-				 Logger.warn("Problem in playback. The error is " + e);
-			});
+
+                //if it's not allowed error and default value are being used, try to play it muted
+                //if this.forcePlayWithAudio is true, it means user specifically ask to do. 
+                // If it's false, it's default value so that we can proceed to try to play with muted
+                //This implementation is added because of auto play policy of the browsers
+                if (e.name === "NotAllowedError" && !this.forcePlayWithAudio) {
+                    this.videojsPlayer.muted(true);
+                    this.videojsPlayer.play();
+                }
+                Logger.warn("Problem in playback. The error is " + e);
+            });
         }
     }
 
