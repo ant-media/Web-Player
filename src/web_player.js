@@ -372,6 +372,8 @@ export class WebPlayer {
 		
 	    let muteLocal = getUrlParameter("mute", this.window.location.search);
 		if (muteLocal === "false") {
+            this.mute = false;
+            //user specifically asks to play with audio so if it fails in auto play, it will not try to play without audio
 			this.forcePlayWithAudio = true;
 		}else if(muteLocal === "true"){
             this.mute = true;
@@ -746,8 +748,14 @@ export class WebPlayer {
         });
 
         if (this.autoPlay) {
+            //try to play directly
             this.videojsPlayer.play().catch((e) => {
-                if (e.name === "NotAllowedError" && !this.forcePlayWithAudio && !this.mute) {
+
+                //if it's not allowed error and default value are being used, try to play it muted
+                //if this.forcePlayWithAudio is true, it means user specifically ask to do. 
+                // If it's false, it's default value so that we can proceed to try to play with muted
+                //This implementation is added because of auto play policy of the browsers
+                if (e.name === "NotAllowedError" && !this.forcePlayWithAudio) {
                     this.videojsPlayer.muted(true);
                     this.videojsPlayer.play();
                 }
