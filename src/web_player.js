@@ -945,10 +945,25 @@ export class WebPlayer {
             }
         });
         this.dashPlayer.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR, (event) => {
+            Logger.warn("dash playback error: " + event);
             this.tryNextTech();
         });
         this.dashPlayer.on(dashjs.MediaPlayer.events.ERROR, (event) => {
+            Logger.warn("error: " + event);
             this.tryNextTech();
+        });
+
+        this.dashPlayer.on(dashjs.MediaPlayer.events.PLAYBACK_NOT_ALLOWED, (event) => {
+            Logger.warn("dash playback not allowed: " + event);
+
+            if (!this.forcePlayWithAudio) {
+                Logger.info("Try to play with muted audio");
+                this.dashPlayer.setMute(true);
+                this.dashPlayer.play();
+            }
+            else {
+                this.tryNextTech(); 
+            }
         });
     }
 
