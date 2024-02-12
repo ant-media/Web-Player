@@ -949,9 +949,52 @@ describe("WebPlayer", function() {
 		result = player.sendWebRTCData("data");
 		expect(result).to.be.false;
 		expect(sendDataViaWebRTC.callCount).to.be.equal(1);
+	});
+
+
+	it("handleDashPlayBackNotAllowed", async function(){
+			
+	    this.timeout(10000);
+		var videoContainer = document.createElement("video_container");
+		  
+	
+ 
+		var player = new WebPlayer({
+			streamId:"streamConfig",
+		}, videoContainer, null);
 		
-	    
-	    
+		
+		{
+			player.playOrder = ["dash"];
+			await player.initialize().then(()=> {
+				
+			}).catch((err) => {
+				expect.fail("it should not fail because we skip videojs and dash is already loaded");
+			});
+		}
+
+		player.dashPlayer = window.dashjs.MediaPlayer().create();
+
+		var setMute = sinon.replace(player.dashPlayer, "setMute", sinon.fake());
+		var play = sinon.replace(player.dashPlayer, "play", sinon.fake());
+		var nextTech = sinon.replace(player, "tryNextTech", sinon.fake());
+
+		expect(player.forcePlayWithAudio).to.be.false;
+		player.handleDashPlayBackNotAllowed();
+		expect(setMute.calledOnce).to.be.true;
+		expect(play.calledOnce).to.be.true;
+		expect(nextTech.notCalled).to.be.true;
+
+		expect(setMute.calledWithExactly(true)).to.be.true;
+
+
+		player.forcePlayWithAudio = true;
+		player.handleDashPlayBackNotAllowed();
+		expect(setMute.calledOnce).to.be.true;
+		expect(play.calledOnce).to.be.true;
+		expect(nextTech.calledOnce).to.be.true;
+
+		
 		
 	});
 	
