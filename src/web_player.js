@@ -1029,7 +1029,9 @@ export class WebPlayer {
         this.setPlayerVisible(false);
 
         this.containerElement.innerHTML = this.videoHTMLContent;
-        this.isIpCameraBroadcast()
+        if(this.restJwt){
+            this.isIpCameraBroadcast()
+        }
 
 
         Logger.warn("Try to play the stream " + this.streamId + " with " + this.currentPlayType);
@@ -1260,9 +1262,7 @@ export class WebPlayer {
        ptzButtonEl.innerHTML = '<span style="cursor:pointer">PTZ</span>';
        ptzButtonEl.onclick = ()=> {
         var ptzContainer = document.getElementById("ptz-camera-container")
-        console.log(ptzContainer)
         var display = ptzContainer.style.display
-        console.log(display)
         if(display === "none" || display === ""){
             this.scalePtzControls()
             ptzContainer.style.display = "flex"
