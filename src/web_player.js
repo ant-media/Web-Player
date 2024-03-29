@@ -636,19 +636,26 @@ export class WebPlayer {
 		//hls specific calls
 		if (extension == "m3u8") {
 	        videojs.Vhs.xhr.beforeRequest = (options) => {
+                const queryParams = [];
 
-                let securityParams = this.getSecurityQueryParams();
-                if (!options.uri.includes(securityParams))
-                {
-                    if (!options.uri.endsWith("?"))
-                    {
-                        options.uri = options.uri + "?";
-                    }
-                    options.uri += securityParams;
+                if (!options.uri.includes("subscriberId") && this.subscriberId != null) {
+                    queryParams.push(`subscriberId=${this.subscriberId}`);
                 }
 
+                if (!options.uri.includes("subscriberCode") && this.subscriberCode != null) {
+                    queryParams.push(`subscriberCode=${this.subscriberCode}`);
+                }
+
+                if (!options.uri.includes("token") && this.token != null) {
+                    queryParams.push(`token=${this.token}`);
+                }
+
+                if (queryParams.length > 0) {
+                    const queryString = queryParams.join("&");
+                    options.uri += options.uri.includes("?") ? `&${queryString}` : `?${queryString}`;
+                }
                 Logger.debug("hls request: " + options.uri);
-	            return options;
+
 	        };
 
 
