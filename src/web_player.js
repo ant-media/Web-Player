@@ -589,6 +589,10 @@ export class WebPlayer {
                     this.errorCalled = false;
                 }, 2500)
             }
+
+            if (this.playerListener != null) {
+                this.playerListener("error", e);
+            }
         });
 
 		//webrtc specific events
@@ -623,10 +627,13 @@ export class WebPlayer {
 	                Logger.warn("notSetRemoteDescription error. Redirecting to HLS player.");
 	                this.playIfExists("hls");
 	            }
+                if (this.playerListener != null) {
+                    this.playerListener("webrtc-error", errors);
+                }
 	        });
 
 	        this.videojsPlayer.on("webrtc-data-received", (event, obj) => {
-	            Logger.warn("webrtc-data-received: " + JSON.stringify(obj));
+	            Logger.trace("webrtc-data-received: " + JSON.stringify(obj));
 	            if (this.webRTCDataListener != null) {
 	                this.webRTCDataListener(obj);
 	            }
@@ -732,7 +739,6 @@ export class WebPlayer {
             if (this.playerListener != null) {
                 this.playerListener("ended");
             }
-
         });
 
         //webrtc plugin sends play event. On the other hand, webrtc plugin sends ready event for every scenario.
@@ -743,6 +749,25 @@ export class WebPlayer {
                 this.playerListener("play");
             }
         });
+
+        this.videojsPlayer.on("playing", () => {
+            if (this.playerListener != null) {
+                this.playerListener("playing");
+            }
+        });
+
+        this.videojsPlayer.on("timeupdate", () => {
+            if (this.playerListener != null) {
+                this.playerListener("timeupdate");
+            }
+        });
+
+        this.videojsPlayer.on("pause", () => {
+            if (this.playerListener != null) {
+                this.playerListener("pause");
+            }
+        });
+
         this.iceConnected = false;
 
         this.videojsPlayer.src({
@@ -964,6 +989,29 @@ export class WebPlayer {
             Logger.warn("dash playback not allowed: " + event);
             this.handleDashPlayBackNotAllowed();
         });
+        this.dashPlayer.on(dashjs.MediaPlayer.events.PLAYBACK_PAUSED, (event)=> {
+            if (this.playerListener != null) {
+                //same event with videojs
+                this.playerListener("pause");
+            }
+        });
+
+        this.dashPlayer.on(dashjs.MediaPlayer.events.PLAYBACK_SEEKED, (event)=> {
+            if (this.playerListener != null) {
+                //same event with videojs
+                this.playerListener("seeked");
+            }
+        });
+
+        this.dashPlayer.on(dashjs.MediaPlayer.events.PLAYBACK_TIME_UPDATED, (event)=> {
+            if (this.playerListener != null) {
+                //same event with videojs
+                this.playerListener("timeupdate");
+            }
+        });
+
+        
+
     }
 
     handleDashPlayBackNotAllowed() {
@@ -1123,6 +1171,7 @@ export class WebPlayer {
             var extension = this.streamId.substring(lastIndexOfDot + 1);
 
             this.playOrder= ["vod"];
+            this.currentPlayType = this.playOrder[0];
 
             if (!this.httpBaseURL.endsWith("/")) {
                 this.httpBaseURL += "/";
@@ -1197,7 +1246,22 @@ export class WebPlayer {
 	    return false;
 	}
 
+    getSource() {
+        if (this.videojsPlayer) {
+            return this.videojsPlayer.currentSrc();
+        }
+        else if (this.dashPlayer) {
+            return this.dashPlayer.getSource();
+        }
+    }
 
-
+    getTime() {
+        if (this.videojsPlayer) {
+            return this.videojsPlayer.currentTime()
+        }
+        else if (this.dashPlayer) {
+            return this.dashPlayer.time();
+        } 
+    }
 
 }
