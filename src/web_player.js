@@ -687,6 +687,8 @@ export class WebPlayer {
 	                }
 	            });
 	        });
+
+            this.listenForID3MetaData()
         }
 
         //videojs is being used to play mp4, webm, m3u8 and webrtc
@@ -796,6 +798,16 @@ export class WebPlayer {
         }
     }
 
+    listenForID3MetaData() {
+        this.videojsPlayer.textTracks().on('addtrack', e => {
+            const metadataTrack = Array.from(this.videojsPlayer.textTracks()).find(t => t.label === 'Timed Metadata');         
+            if (metadataTrack) {
+                metadataTrack.addEventListener('cuechange', () => {
+                    console.log(metadataTrack.activeCues[0]?.text, metadataTrack.activeCues);
+                });
+            }
+        });
+    }
 
     makeVideoJSVisibleWhenReady() {
 		this.videojsPlayer.ready(() => {
