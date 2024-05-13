@@ -166,6 +166,11 @@ export class WebPlayer {
      */
     tryNextTechTimer;
 
+     /**
+     * Listener for ID3 text data
+     */
+     id3Listener;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -343,6 +348,8 @@ export class WebPlayer {
         this.containerElementInitialDisplay = "block";
         this.placeHolderElementInitialDisplay = "block";
         this.forcePlayWithAudio = false;
+        this.id3Listener = null;
+
     }
     
     initializeFromUrlParams() {
@@ -803,7 +810,11 @@ export class WebPlayer {
             const metadataTrack = Array.from(this.videojsPlayer.textTracks()).find(t => t.label === 'Timed Metadata');         
             if (metadataTrack) {
                 metadataTrack.addEventListener('cuechange', () => {
-                    console.log(metadataTrack.activeCues[0]?.text, metadataTrack.activeCues);
+                    var id3DataText = metadataTrack.activeCues[0]?.text
+                    if(this.id3Listener){
+                        this.id3Listener(id3DataText)
+                    }
+                    Logger.info("ID3 Meta Data Received: " + id3DataText);
                 });
             }
         });
@@ -1236,6 +1247,14 @@ export class WebPlayer {
      */
     addWebRTCDataListener(webRTCDataListener) {
         this.webRTCDataListener = webRTCDataListener
+    }
+
+    /**
+     * ID3 meta data listener
+     * @param {*} id3Listener
+     */
+    addId3Listener(id3Listener) {
+        this.id3Listener = id3Listener
     }
 
     /**
