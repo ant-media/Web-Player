@@ -1,6 +1,6 @@
 {
   "name": "@antmedia/web_player",
-  "version": "2.9.0-SNAPSHOT",
+  "version": "2.9.0-ALPHA",
   "description": "Ant Media Server Player that can play WebRTC, HLS, DASH",
   "main": "dist/index.js",
   "module": "dist/es/index.js",
@@ -35,8 +35,8 @@
     "dashjs": "^4.7.4",
     "rimraf": "^5.0.5",
     "video.js": "^8.12.0",
-    "videojs-contrib-quality-levels": "^2.2.1",
-    "videojs-hls-quality-selector": "^1.1.4"
+    "videojs-contrib-quality-levels": "^4.1.0",
+    "videojs-hls-quality-selector": "^2.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.21.5",
