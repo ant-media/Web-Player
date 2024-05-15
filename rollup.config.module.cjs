@@ -5,6 +5,7 @@ const commonjs = require('@rollup/plugin-commonjs').default;
 const css = require("rollup-plugin-import-css");
 const replace = require('rollup-plugin-replace');
 const terser = require('@rollup/plugin-terser');
+const json = require('@rollup/plugin-json')
 
 const builds = {
 	input: [ 
@@ -25,6 +26,7 @@ const builds = {
 		nodeResolve(),
 		commonjs(),
 		css(),
+		json(),
 		replace({
 			ENV: JSON.stringify(process.env.NODE_ENV || 'development'),
 		  }),
