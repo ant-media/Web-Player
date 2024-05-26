@@ -1,5 +1,6 @@
 
 const babel = require('@rollup/plugin-babel').default;
+const image = require('@rollup/plugin-image').default;
 
 const builds = {
 	input: [ 'src/index.js'],
@@ -9,7 +10,11 @@ const builds = {
 		format: 'umd'
 	},
 	],
-	plugins: [babel({ babelHelpers: 'bundled' })]
+	plugins: [babel({ babelHelpers: 'bundled' }),
+		image({
+			dom:true
+		})
+	]
 
 };
 

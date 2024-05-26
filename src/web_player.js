@@ -1,9 +1,16 @@
-
 import { getUrlParameter } from "@antmedia/webrtc_adaptor/dist/fetch.stream";
 import { Logger } from "@antmedia/webrtc_adaptor/dist/loglevel.min";
+import  { UpArrow } from "./icons/images";
 
 export const STATIC_VIDEO_HTML =  "<video id='video-player' class='video-js vjs-default-skin vjs-big-play-centered' controls playsinline></video>";
 
+const PTZ_LEFT_BUTTON_ID = "left-button";
+const PTZ_RIGHT_BUTTON_ID = "right-button";
+const PTZ_UP_BUTTON_ID = "up-button";
+const PTZ_DOWN_BUTTON_ID = "down-button";
+const PTZ_ZOOM_IN_BUTTON_ID = "zoom-in-button";
+const PTZ_ZOOM_OUT_BUTTON_ID = "zoom-out-button";
+const PTZ_ZOOM_TEXT_BUTTON_ID = "zoom-text";
 
 export class WebPlayer {
 
@@ -166,6 +173,36 @@ export class WebPlayer {
      */
     tryNextTechTimer;
 
+    /**
+     * REST API Filter JWT 
+     */
+    restJwt;
+
+     /**
+     * PTZ Control HTML Elements
+     */
+    ptzControlElements;
+
+    /** 
+     * PTZ Value Step
+    */
+    ptzValueStep;
+
+    /**
+     * PTZ Movement. It can be relative, absolute, continuous
+     */
+    ptzMovement;
+
+    /**
+     * Rest API promise to call REST api through some external methods
+     */
+    restAPIPromise;
+
+    /**
+     * Is IP Camera
+     */
+    isIPCamera;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -207,7 +244,7 @@ export class WebPlayer {
         }
         
         this.containerElement = containerElement;
-        if (this.containerElement.style && this.containerElement.style.display != "") {
+        if (this.containerElement.style && this.containerElement.style.display !== "") {
             this.containerElementInitialDisplay = this.containerElement.style.display;
         }
         this.placeHolderElement = placeHolderElement;
@@ -343,6 +380,12 @@ export class WebPlayer {
         this.containerElementInitialDisplay = "block";
         this.placeHolderElementInitialDisplay = "block";
         this.forcePlayWithAudio = false;
+        this.restJwt = "";
+        this.ptzControlElements = {}
+        this.ptzValueStep = 0.1;
+        this.ptzMovement = "relative";
+        this.restAPIPromise = null;
+        this.isIPCamera = false;
     }
     
     initializeFromUrlParams() {
@@ -395,7 +438,12 @@ export class WebPlayer {
 	    let playOrder = getUrlParameter("playOrder", this.window.location.search);
 	    this.playOrder = playOrder ? playOrder.split(',') : this.playOrder;
 	    
-	   
+        this.restJwt = getUrlParameter("restJwt", this.window.location.search) || this.restJwt;
+
+        this.ptzValueStep = getUrlParameter("ptzValueStep", this.window.location.search) || this.ptzValueStep;
+
+        this.ptzMovement = getUrlParameter("ptzMovement", this.window.location.search) || this.ptzMovement;
+
 	}
 
     loadWebRTCComponents() {
@@ -748,6 +796,13 @@ export class WebPlayer {
             if (this.playerListener != null) {
                 this.playerListener("play");
             }
+
+            if(this.restJwt){
+                this.isIpCameraBroadcast();
+            }
+            else if (this.isIPCamera){
+                this.injectPtzElements();  
+            }
         });
 
         this.videojsPlayer.on("playing", () => {
@@ -1074,6 +1129,7 @@ export class WebPlayer {
 
         this.containerElement.innerHTML = this.videoHTMLContent;
 
+
         Logger.warn("Try to play the stream " + this.streamId + " with " + this.currentPlayType);
         switch (this.currentPlayType) {
             case "hls":
@@ -1246,6 +1302,204 @@ export class WebPlayer {
 	    return false;
 	}
 
+    injectPtzElements(){
+        var ptzControlsHtmlContent = `
+        <style>
+          .ptz-camera-container {
+            display: none;
+            position: absolute;
+            flex-direction: row;
+            align-items: center;
+            bottom: 30px;
+            right: 10px;
+            z-index:999;
+          }
+          .direction-arrow-container {
+            display: flex;
+            width: 200px;
+            height: 200px;
+            position: relative;
+          }
+         
+        </style>
+        <div id="ptz-camera-container" class="ptz-camera-container">
+          
+            <div style="display: flex; flex-direction: column;">
+             <div style="margin-bottom:5px">
+                <span id="zoom-out-button" style="color: #bc1b22; font-size: 50px; font-weight: bold; user-select: none; cursor: pointer; margin-right: 5px;">-</span>
+                <span id="zoom-in-button" style="color: #bc1b22; font-size: 50px; font-weight: bold; cursor: pointer; margin-left: 5px; user-select: none;">+</span>
+             </div>
+              <div id="direction-arrow-container" class="direction-arrow-container">
+                <img id="up-button" style="position: absolute; width: 50px; cursor: pointer; height: 50px; left: 50%; transform: translateX(-50%);" src="`+ UpArrow +`"/>
+             
+                <img id="left-button" style="position: absolute; left: 0px; width: 50px; height: 50px; cursor: pointer; top: 50%; transform: translateY(-50%) rotate(-90deg);" src="`+UpArrow+`"/>
+                <img id="right-button" style="position: absolute; right:0px; top: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateY(-50%) rotate(90deg);" src="`+UpArrow+`"/>
+                <img id="down-button" style="position: absolute; bottom:0px;left: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateX(-50%) rotate(180deg);" src="`+UpArrow+`"/>
+               
+            </div>
+           
+           
+            </div>
+          </div>
+        </div>
+        `;
+
+       var ptzCameraContainer = document.getElementById("ptz-camera-container");
+       if (ptzCameraContainer) {
+            Logger.info("PTZ controls are already injected");
+            return;
+       }
+ 
+       var videoPlayerContainer = document.getElementById("video-player")
+       videoPlayerContainer.insertAdjacentHTML('afterbegin', ptzControlsHtmlContent)
+
+       let ptzButton = this.videojsPlayer.controlBar.addChild('button');
+       let ptzButtonEl = ptzButton.el();
+       ptzButtonEl.innerHTML = '<span style="cursor:pointer">PTZ</span>';
+       ptzButtonEl.onclick = ()=> {
+        var ptzContainer = document.getElementById("ptz-camera-container")
+        var display = ptzContainer.style.display
+        if(display === "none" || display === ""){
+            this.scalePtzControls()
+            ptzContainer.style.display = "flex"
+        }else{
+            ptzContainer.style.display = "none"
+        }
+       };
+       ptzButton.controlText('Show PTZ Controls');
+       this.videojsPlayer.controlBar
+         .el()
+         .insertBefore(
+            ptzButtonEl,
+           this.videojsPlayer.controlBar.getChild('fullscreenToggle').el()
+         );
+      
+       
+       this.videojsPlayer.on('fullscreenchange', ()=> {
+            this.scalePtzControls()
+       });
+
+       this.initPtzControls()
+       
+    }
+
+    scalePtzControls(){
+        var containerWidth = this.getContainerWidth()
+        var arrowButtonWidthHeight = Math.round((containerWidth* 25) / 640)
+        var arrowContainerWidthHeight = Math.round((containerWidth * 75)/640)
+        var zoomButtonTextSize = Math.round((containerWidth * 35)/640)
+
+        this.ptzControlElements.leftButton = document.getElementById(PTZ_LEFT_BUTTON_ID);
+        this.ptzControlElements.rightButton = document.getElementById(PTZ_RIGHT_BUTTON_ID);
+        this.ptzControlElements.upButton = document.getElementById(PTZ_UP_BUTTON_ID);
+        this.ptzControlElements.downButton = document.getElementById(PTZ_DOWN_BUTTON_ID);
+           
+        this.ptzControlElements.leftButton.style.width = arrowButtonWidthHeight+"px"
+        this.ptzControlElements.leftButton.style.height = arrowButtonWidthHeight+"px"
+
+        this.ptzControlElements.rightButton.style.width = arrowButtonWidthHeight+"px"
+        this.ptzControlElements.rightButton.style.height = arrowButtonWidthHeight+"px"
+
+        this.ptzControlElements.upButton.style.width = arrowButtonWidthHeight+"px"
+        this.ptzControlElements.upButton.style.height = arrowButtonWidthHeight+"px"
+
+        this.ptzControlElements.downButton.style.width = arrowButtonWidthHeight+"px"
+        this.ptzControlElements.downButton.style.height = arrowButtonWidthHeight+"px"
+
+        this.ptzControlElements.directionArrowContainer.style.width = arrowContainerWidthHeight+"px"
+        this.ptzControlElements.directionArrowContainer.style.height = arrowContainerWidthHeight+"px"
+
+        this.ptzControlElements.zoomInButton.style.fontSize = zoomButtonTextSize+"px"
+        this.ptzControlElements.zoomOutButton.style.fontSize = zoomButtonTextSize+"px"
+
+
+    }
+
+    getContainerWidth(){
+        var videoPlayerContainer = document.getElementById("video-player")
+        var rect = videoPlayerContainer.getBoundingClientRect()
+        return rect.width
+       
+    }
+
+    initPtzControls(){
+
+        this.ptzControlElements.directionArrowContainer = document.getElementById("direction-arrow-container")
+        
+
+
+        this.ptzControlElements.leftButton = document.getElementById(PTZ_LEFT_BUTTON_ID);
+        this.ptzControlElements.rightButton = document.getElementById(PTZ_RIGHT_BUTTON_ID);
+        this.ptzControlElements.upButton = document.getElementById(PTZ_UP_BUTTON_ID);
+        this.ptzControlElements.downButton = document.getElementById(PTZ_DOWN_BUTTON_ID);
+        this.ptzControlElements.zoomInButton = document.getElementById(PTZ_ZOOM_IN_BUTTON_ID);
+        this.ptzControlElements.zoomOutButton = document.getElementById(PTZ_ZOOM_OUT_BUTTON_ID);
+
+
+        this.ptzControlElements.leftButton.addEventListener('click', () => this.moveCamera(1 * this.ptzValueStep, 0, 0, this.ptzMovement));
+        this.ptzControlElements.rightButton.addEventListener('click', () => this.moveCamera(-1 * this.ptzValueStep, 0, 0, this.ptzMovement));
+        this.ptzControlElements.downButton.addEventListener('click', () => this.moveCamera(0, -1 * this.ptzValueStep, 0, this.ptzMovement));
+        this.ptzControlElements.upButton.addEventListener('click', () => this.moveCamera(0, this.ptzValueStep, 0, this.ptzMovement));
+        this.ptzControlElements.zoomInButton.addEventListener('click', () => this.moveCamera(0, 0, this.ptzValueStep, this.ptzMovement));
+        this.ptzControlElements.zoomOutButton.addEventListener('click', () => this.moveCamera(0, 0, - 1 * this.ptzValueStep, this.ptzMovement));
+    }
+
+    isIpCameraBroadcast() {
+        var apiEndpoint =  "rest/v2/broadcasts/" + this.streamId;
+        const requestOptions = {
+          method: 'GET',
+          headers: {
+            'Authorization': this.restJwt
+          },
+        };
+      
+        var restPromise;
+        if (this.restAPIPromise) {
+            restPromise = this.restAPIPromise(apiEndpoint, requestOptions);
+        }
+        else {
+            restPromise = fetch(this.httpBaseURL + apiEndpoint, requestOptions);
+        }
+        restPromise
+          .then(response => response.json ? response.json() : response)
+          .then(data => {
+            var broadcastType = data.type;
+            
+            if (broadcastType === "ipCamera") {
+              this.injectPtzElements()                
+            }
+            console.log(data);
+          }).catch(error => console.error('Error:', error));;
+      }
+      
+    moveCamera(valueX, valueY, valueZ, movement) {
+
+        Logger.info("move camera called valuex:" + valueX + " valueY:" + valueY + " valueZ:" + valueZ + " movement:" + movement);
+        var apiEndpoint =  "rest/v2/broadcasts/" + this.streamId + "/ip-camera/move"+ "?valueX="+valueX+"&valueY="+valueY+"&valueZ="+valueZ+"&movement="+movement;
+       
+        const requestOptions = {
+          method: 'POST',
+          headers: {
+            'Authorization': this.restJwt,
+            'Content-Type': 'application/json',
+          },
+        };
+        var restPromise;
+        if (this.restAPIPromise) {
+            restPromise = this.restAPIPromise(apiEndpoint, requestOptions);
+        }
+        else {
+            restPromise = fetch(this.httpBaseURL + apiEndpoint, requestOptions);
+        }
+      
+        restPromise
+          .then(response => response.json ? response.json() : response)
+          .then(data => {
+            // Handle the response data as needed
+          })
+          .catch(error => console.error('Error:', error));
+      }
+      
     getSource() {
         if (this.videojsPlayer) {
             return this.videojsPlayer.currentSrc();
