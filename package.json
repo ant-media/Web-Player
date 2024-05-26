@@ -31,8 +31,8 @@
   "dependencies": {
     "@antmedia/videojs-webrtc-plugin": "^1.2.1",
     "@antmedia/webrtc_adaptor": "2.9.1-SNAPSHOT-2024-May-17-12-21",
-    "aframe": "1.2.0",
-    "dashjs": "^4.5.2",
+    "aframe": "1.5.0",
+    "dashjs": "^4.7.4",
     "rimraf": "^5.0.5",
     "video.js": "^7.18.0",
     "videojs-contrib-quality-levels": "^2.2.1",
