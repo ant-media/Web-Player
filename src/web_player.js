@@ -173,6 +173,11 @@ export class WebPlayer {
      */
     tryNextTechTimer;
 
+     /**
+     * Listener for ID3 text data
+     */
+     id3Listener;
+
     /**
      * REST API Filter JWT 
      */
@@ -380,6 +385,7 @@ export class WebPlayer {
         this.containerElementInitialDisplay = "block";
         this.placeHolderElementInitialDisplay = "block";
         this.forcePlayWithAudio = false;
+        this.id3Listener = null;
         this.restJwt = "";
         this.ptzControlElements = {}
         this.ptzValueStep = 0.1;
@@ -735,6 +741,8 @@ export class WebPlayer {
 	                }
 	            });
 	        });
+
+            this.listenForID3MetaData()
         }
 
         //videojs is being used to play mp4, webm, m3u8 and webrtc
@@ -851,6 +859,20 @@ export class WebPlayer {
         }
     }
 
+    listenForID3MetaData() {
+        this.videojsPlayer.textTracks().on('addtrack', e => {
+            const metadataTrack = Array.from(this.videojsPlayer.textTracks()).find(t => t.label === 'Timed Metadata');         
+            if (metadataTrack) {
+                metadataTrack.addEventListener('cuechange', () => {
+                    var id3DataText = metadataTrack.activeCues[0]?.text
+                    if(this.id3Listener){
+                        this.id3Listener(id3DataText)
+                    }
+                    Logger.info("ID3 Meta Data Received: " + id3DataText);
+                });
+            }
+        });
+    }
 
     makeVideoJSVisibleWhenReady() {
 		this.videojsPlayer.ready(() => {
@@ -1280,6 +1302,14 @@ export class WebPlayer {
      */
     addWebRTCDataListener(webRTCDataListener) {
         this.webRTCDataListener = webRTCDataListener
+    }
+
+    /**
+     * ID3 meta data listener
+     * @param {*} id3Listener
+     */
+    addId3Listener(id3Listener) {
+        this.id3Listener = id3Listener
     }
 
     /**
