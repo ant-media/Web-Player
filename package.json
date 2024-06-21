@@ -29,7 +29,7 @@
   },
   "license": "ISC",
   "dependencies": {
-    "@antmedia/videojs-webrtc-plugin": "^1.2.1",
+    "@antmedia/videojs-webrtc-plugin": "^1.2.2",
     "@antmedia/webrtc_adaptor": "2.9.1-SNAPSHOT-2024-May-17-12-21",
     "aframe": "1.5.0",
     "dashjs": "^4.7.4",
