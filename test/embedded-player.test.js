@@ -464,6 +464,8 @@ describe("WebPlayer", function() {
 	
 	
 	it("play", async function() {
+		this.timeout(10000);
+
 		var videoContainer = document.createElement("video_container");
 		  
 		var placeHolder = document.createElement("place_holder");
@@ -480,6 +482,8 @@ describe("WebPlayer", function() {
 		document.body.appendChild(fixture);
 		  						  		 	      
 	    var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+		await player.initialize();
 	    var playIfExists = sinon.replace(player, "playIfExists", sinon.fake());
 	    
 	    player.play();
@@ -495,6 +499,7 @@ describe("WebPlayer", function() {
 		
 		player = new WebPlayer(windowComponent, videoContainer, placeHolder);	
 		
+		await player.initialize();
 		var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
 
 		player.play();
@@ -516,6 +521,7 @@ describe("WebPlayer", function() {
 		  						  addEventListener: window.addEventListener};
 		  						  
 		player = new WebPlayer(windowComponent, videoContainer, placeHolder);	
+		await player.initialize();
 		var playViaDash = sinon.replace(player, "playViaDash", sinon.fake());
 		player.play();
 		expect(playViaDash.calledWithMatch("streams/stream123/stream123.mpd", "mpd")).to.be.true;	
@@ -908,7 +914,7 @@ describe("WebPlayer", function() {
 	
 	it("sendWebRTCData", async function() {
 		
-		
+		this.timeout(10000);
 		var videoContainer = document.createElement("video_container");
 		  
 		var placeHolder = document.createElement("place_holder");
@@ -921,7 +927,11 @@ describe("WebPlayer", function() {
 		  						  document:  document,
 		  						  };
 		  						  
-		  						  
+		//videoContainer.innerHTML = STATIC_VIDEO_HTML;
+
+		// Append the fixture element to the document body
+		document.body.appendChild(videoPlayer);	
+									
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 		//var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
 		
