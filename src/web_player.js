@@ -602,7 +602,10 @@ export class WebPlayer {
         }
         else if (extension == "webrtc") {
             type = "video/webrtc";
-        }
+        } 
+        else if (extension == "mp3") {
+            type = "audio/mpeg";
+        } 
         else {
             Logger.warn("Unknown extension: " + extension);
             return;
