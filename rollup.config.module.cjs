@@ -6,6 +6,7 @@ const css = require("rollup-plugin-import-css");
 const replace = require('rollup-plugin-replace');
 const terser = require('@rollup/plugin-terser');
 const image = require('@rollup/plugin-image');
+const json = require('@rollup/plugin-json');
 
 const builds = {
 	input: [ 
@@ -22,6 +23,7 @@ const builds = {
 	}
 	],
 	plugins: [
+		json(),
 		babel({ babelHelpers: 'bundled' }), 
 		nodeResolve(),
 		commonjs(),

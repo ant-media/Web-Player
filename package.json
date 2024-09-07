@@ -48,6 +48,7 @@
     "@rollup/plugin-image": "^3.0.3",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-json": "^6.1.0",
     "chai": "^4.3.7",
     "codecov": "^3.8.3",
     "copy-files-from-to": "^3.9.0",
