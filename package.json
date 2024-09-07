@@ -37,7 +37,7 @@
     "video.js": "^8.17.3",
     "videojs-contrib-quality-levels": "^4.1.0",
     "@types/videojs-contrib-quality-levels": "^2.0.4",
-    "videojs-hls-quality-selector": "^2.2.0"
+    "videojs-hls-quality-selector": "^2.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.21.5",
