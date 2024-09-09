@@ -20,5 +20,8 @@
     "typeRoots": [
       "node_modules/@types"
     ],
-  }
+    "paths": {
+      "videojs-contrib-quality-levels": ["./node_modules/@types/videojs-contrib-quality-levels/index.d.ts"]
+    }
+    }
 }
