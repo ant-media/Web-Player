@@ -568,7 +568,7 @@ export class WebPlayer {
             this.videojsPlayer.pause();
             setTimeout(() => {
                 this.videojsPlayer.play();
-            }, 1000);
+            }, 2000);
         }
 	}
 
