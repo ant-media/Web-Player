@@ -1,6 +1,6 @@
 {
   "name": "@antmedia/web_player",
-  "version": "2.9.1-SNAPSHOT",
+  "version": "2.11.0",
   "description": "Ant Media Server Player that can play WebRTC, HLS, DASH",
   "main": "dist/index.js",
   "module": "dist/es/index.js",
@@ -29,14 +29,16 @@
   },
   "license": "ISC",
   "dependencies": {
-    "@antmedia/videojs-webrtc-plugin": "^1.2.2",
+    "@antmedia/videojs-webrtc-plugin": "^1.2.3",
     "@antmedia/webrtc_adaptor": "2.9.1-SNAPSHOT-2024-May-17-12-21",
+    "@rollup/plugin-json": "6.1.0",
+    "@types/videojs-contrib-quality-levels": "^2.0.4",
     "aframe": "1.5.0",
     "dashjs": "^4.7.4",
     "rimraf": "^5.0.5",
-    "video.js": "^7.18.0",
-    "videojs-contrib-quality-levels": "^2.2.1",
-    "videojs-hls-quality-selector": "^1.1.4"
+    "video.js": "^8.17.3",
+    "videojs-contrib-quality-levels": "^4.1.0",
+    "videojs-hls-quality-selector": "^2.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.21.5",
@@ -47,6 +49,7 @@
     "@rollup/plugin-image": "^3.0.3",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",
+    "@types/video.js": "^7.3.58",
     "chai": "^4.3.7",
     "codecov": "^3.8.3",
     "copy-files-from-to": "^3.9.0",
