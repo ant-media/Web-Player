@@ -1007,6 +1007,30 @@ describe("WebPlayer", function() {
 		
 		
 	});
+
+	it("LL-HLS play", async function() {
+		this.timeout(10000);
+	
+		var videoContainer = document.createElement("video_container");
+
+		var httpBaseUrl = "http://localhost:5080/LiveApp/";
+		var streamId = "streamConfig";
+		var streamPath = httpBaseUrl + WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER + "/" + streamId + "/" + streamId + "__master." + WebPlayer.HLS_EXTENSION;
+		
+		var player = new WebPlayer({
+			streamId: streamId,
+			httpBaseUrl: httpBaseUrl,
+			playOrder: ["ll-hls"]
+		}, videoContainer, null);
+
+		var checkStreamExistsViaHttp = sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.resolves(streamPath));
+		var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
+
+		await player.playIfExists("ll-hls");
+
+		expect(checkStreamExistsViaHttp.calledWithMatch(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, streamId, WebPlayer.HLS_EXTENSION)).to.be.true;
+		expect(playWithVideoJS.calledWithMatch(streamPath, WebPlayer.HLS_EXTENSION)).to.be.true;
+	});
 	
 	
     

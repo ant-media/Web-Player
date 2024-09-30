@@ -29,6 +29,11 @@ export class WebPlayer {
 	*/
 	static STREAMS_FOLDER = "streams";
 
+    /**
+	* lowLatencyHlsFolder: ll-hls folder. Optional. Default value is "ll-hls"
+	*/
+    static LL_HLS_FOLDER = "ll-hls";
+
     
     /**
      * Video HTML content. It's by default STATIC_VIDEO_HTML
@@ -42,7 +47,7 @@ export class WebPlayer {
 	
     /**
     *  "playOrder": the order which technologies is used in playing. Optional. Default value is "webrtc,hls".
-    *	possible values are "hls,webrtc","webrtc","hls","vod","dash"
+    *	possible values are "hls,webrtc","webrtc","hls","ll-hls","vod","dash",
     *   It will be taken from url parameter "playOrder".
     */
     playOrder;
@@ -225,6 +230,8 @@ export class WebPlayer {
 		* streamsFolder: streams folder. Optional. Default value is "streams"
 		*/
 		WebPlayer.STREAMS_FOLDER = "streams";
+
+        WebPlayer.LL_HLS_Folder = "ll-hls";
 
 		WebPlayer.VIDEO_PLAYER_ID = "video-player";
 		
@@ -478,7 +485,7 @@ export class WebPlayer {
      * load scripts dynamically
      */
     loadVideoJSComponents() {
-        if (this.playOrder.includes("hls") || this.playOrder.includes("vod") || this.playOrder.includes("webrtc")) {
+        if (this.playOrder.includes("hls") || this.playOrder.includes("ll-hls") || this.playOrder.includes("vod") || this.playOrder.includes("webrtc")) {
             //it means we're going to use videojs
             //load videojs css
 			if (!this.videojsLoaded) 
@@ -602,7 +609,10 @@ export class WebPlayer {
         }
         else if (extension == "webrtc") {
             type = "video/webrtc";
-        }
+        } 
+        else if (extension == "mp3") {
+            type = "audio/mpeg";
+        } 
         else {
             Logger.warn("Unknown extension: " + extension);
             return;
@@ -696,7 +706,7 @@ export class WebPlayer {
 
 		//hls specific calls
 		if (extension == "m3u8") {
-	        videojs.Vhs.xhr.beforeRequest = (options) => {
+	        videojs.Vhs.xhr.onRequest = (options) => {
                 const queryParams = [];
 
                 if (!options.uri.includes("subscriberId") && this.subscriberId != null) {
@@ -893,11 +903,17 @@ export class WebPlayer {
         if (!streamId.startsWith(streamsfolder)) {
             streamPath += streamsfolder + "/";
         }
-        streamPath += streamId;
+        var llHls = streamsfolder.includes(WebPlayer.LL_HLS_FOLDER);
 
-        if (extension != null && extension != "") {
-            //if there is extension, add it and try if _adaptive exists
-            streamPath += "_adaptive" + "." + extension;
+        if (llHls) {
+            // LL-HLS path
+            streamPath += `${streamId}/${streamId}__master`;
+        } else {
+            streamPath += streamId;
+        }
+    
+        if (extension) {
+            streamPath += `_adaptive.${extension}`;
         }
 
         streamPath = this.addSecurityParams(streamPath);
@@ -910,8 +926,14 @@ export class WebPlayer {
                         resolve(streamPath);
                     });
                 } else {
-                    //adaptive not exists, try mpd or m3u8 exists.
-                    streamPath = this.httpBaseURL + streamsfolder + "/" + streamId + "." + extension;
+
+                    if (llHls) {
+                        streamPath = this.httpBaseURL + streamsfolder + "/" + streamId + "/"+  streamId + "__master." + extension;
+
+                    } else {
+                        streamPath = this.httpBaseURL + streamsfolder + "/" + streamId + "." + extension;
+                    }
+
                     streamPath = this.addSecurityParams(streamPath);
 
                     return fetch(streamPath, { method: 'HEAD' })
@@ -1167,6 +1189,17 @@ export class WebPlayer {
                 }).catch((error) => {
 
                     Logger.warn("HLS stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
+                    this.tryNextTech();
+                });
+            case "ll-hls":
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, this.streamId, WebPlayer.HLS_EXTENSION).then((streamPath) => {
+
+                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    Logger.warn("incoming stream path: " + streamPath);
+
+                }).catch((error) => {
+
+                    Logger.warn("LL-HLS stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
                     this.tryNextTech();
                 });
             case "dash":
