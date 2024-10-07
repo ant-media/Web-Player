@@ -23,8 +23,12 @@ const builds = {
 	}
 	],
 	plugins: [
-		babel({ babelHelpers: 'bundled' }), 
-		nodeResolve(),
+		babel({ 
+			babelHelpers: 'bundled' 
+			}), 
+		nodeResolve({
+			dedupe: ['video.js']
+		}),
 		commonjs(),
 		json(),
 		css(),

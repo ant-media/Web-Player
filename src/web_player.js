@@ -238,6 +238,7 @@ export class WebPlayer {
 		// Initialize default values
         this.setDefaults();
 
+        Logger.info("config object mode-----");
 		
 		  // Check if the first argument is a config object or a Window object
         if (!this.isWindow(configOrWindow)) {
@@ -501,8 +502,7 @@ export class WebPlayer {
                     window.videojs = videojs.default;		
                     this.videojsLoaded = true;	 
 				})
-				.then(() => { return import('videojs-contrib-quality-levels') } )
-				.then(() => { return import('videojs-hls-quality-selector') } )
+				.then(() => { return import('videojs-quality-selector-hls') } )
 				.then(() => { return this.loadWebRTCComponents(); });
 			}
 			else {
@@ -733,8 +733,8 @@ export class WebPlayer {
 	        this.videojsPlayer.ready(() => {
 
 	            // If it's already added to player, no need to add again
-	            if (typeof this.videojsPlayer.hlsQualitySelector === "function") {
-	                this.videojsPlayer.hlsQualitySelector({
+	            if (typeof this.videojsPlayer.qualitySelectorHls === "function") {
+	                this.videojsPlayer.qualitySelectorHls({
 	                    displayCurrentQuality: true,
 	                });
 	            }
