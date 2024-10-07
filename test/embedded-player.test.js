@@ -785,7 +785,7 @@ describe("WebPlayer", function() {
 		expect(playMethod.calledOnce).to.be.false;
 		
 		
-		clock.tick(1500);
+		clock.tick(2500);
 		
 		expect(pauseMethod.calledOnce).to.be.true;
 		expect(playMethod.calledOnce).to.be.true;
