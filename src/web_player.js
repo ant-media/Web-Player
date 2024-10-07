@@ -237,8 +237,6 @@ export class WebPlayer {
 		
 		// Initialize default values
         this.setDefaults();
-
-        Logger.info("config object mode-----");
 		
 		  // Check if the first argument is a config object or a Window object
         if (!this.isWindow(configOrWindow)) {
