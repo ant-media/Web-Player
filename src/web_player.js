@@ -1,6 +1,6 @@
 import { getUrlParameter } from "@antmedia/webrtc_adaptor/dist/fetch.stream";
 import { Logger } from "@antmedia/webrtc_adaptor/dist/loglevel.min";
-import  { UpArrow } from "./icons/images";
+import { UpArrow } from "./icons/images";
 
 export const STATIC_VIDEO_HTML =  "<video id='video-player' class='video-js vjs-default-skin vjs-big-play-centered' controls playsinline></video>";
 
