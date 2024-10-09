@@ -1032,7 +1032,77 @@ describe("WebPlayer", function() {
 		expect(playWithVideoJS.calledWithMatch(streamPath, WebPlayer.HLS_EXTENSION)).to.be.true;
 	});
 	
+	it("Player events", async function() {
+		this.timeout(10000)
+		var videoContainer = document.createElement("video_container");
+		  
+		var placeHolder = document.createElement("place_holder");
+		  			
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  protocol:"http:", pathname: "/", hostname:"example.com", port:5080 };
+		var windowComponent = {  location : locationComponent,
+		  						  document:  document,
+		  						  };
+		  						  			  
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+	 
+	    var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
+		
+		// Mock videojsPlayer
+		player.videojsPlayer = {
+			on: sinon.stub(),
+			currentTime: sinon.stub().returns(10),
+			bufferedPercent: sinon.stub().returns(0.5),
+			volume: sinon.stub().returns(0.8),
+			muted: sinon.stub().returns(false),
+			playbackRate: sinon.stub().returns(1.0),
+		};
+		
+		player.playerListener = sinon.stub();
+		
+		player.tryNextTech = sinon.stub();
+		
+		player.listenPlayerEvents();
+		
+		player.playerEvents.forEach(event => {
+		  expect(player.videojsPlayer.on.calledWith(event)).to.be.true;
+		});
+		
+		const playCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'play')[1];
+		playCallback();
+		expect(setPlayerVisible.calledWith(true)).to.be.true;
+		expect(player.playerListener.calledWith("play")).to.be.true;
+		
+		const endedCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'ended')[1];
+		endedCallback();
+		expect(setPlayerVisible.calledWith(false)).to.be.true;
+		expect(player.playerListener.calledWith("ended")).to.be.true;
+
+		const pauseCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'pause')[1];
+		pauseCallback();
+		expect(player.playerListener.calledWith("pause")).to.be.true;
+
+		const errorCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'error')[1];
+		const errorEventData = { code: 4 };
+		errorCallback(errorEventData);
+		expect(player.playerListener.calledWith("error", errorEventData)).to.be.true;
+
+		const timeUpdateCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'timeupdate')[1];
+		timeUpdateCallback();
+		expect(player.playerListener.calledWith('timeupdate', sinon.match.any, { currentTime: 10 })).to.be.true;
 	
+		const progressCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'progress')[1];
+		progressCallback();
+		expect(player.playerListener.calledWith('progress', sinon.match.any, { bufferedPercent: 0.5 })).to.be.true;
+	
+		const volumeChangeCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'volumechange')[1];
+		volumeChangeCallback();
+		expect(player.playerListener.calledWith('volumechange', sinon.match.any, { volume: 0.8, muted: false })).to.be.true;
+	
+		const rateChangeCallback = player.videojsPlayer.on.args.find(arg => arg[0] === 'ratechange')[1];
+		rateChangeCallback();
+		expect(player.playerListener.calledWith('ratechange', sinon.match.any, { playbackRate: 1.0 })).to.be.true;
+		
+	})
     
     
 });

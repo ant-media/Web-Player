@@ -1,6 +1,6 @@
 import { getUrlParameter } from "@antmedia/webrtc_adaptor/dist/fetch.stream";
 import { Logger } from "@antmedia/webrtc_adaptor/dist/loglevel.min";
-import  { UpArrow } from "./icons/images";
+import { UpArrow } from "./icons/images";
 
 export const STATIC_VIDEO_HTML =  "<video id='video-player' class='video-js vjs-default-skin vjs-big-play-centered' controls playsinline></video>";
 
@@ -13,6 +13,8 @@ const PTZ_ZOOM_OUT_BUTTON_ID = "zoom-out-button";
 const PTZ_ZOOM_TEXT_BUTTON_ID = "zoom-text";
 
 export class WebPlayer {
+
+    static PLAYER_EVENTS = ['abort','canplay','canplaythrough','durationchange','emptied','ended','error','loadeddata','loadedmetadata','loadstart','pause','play','playing','progress','ratechange','seeked','seeking','stalled','suspend','timeupdate','volumechange','waiting','enterpictureinpicture','leavepictureinpicture','fullscreenchange','resize','audioonlymodechange','audiopostermodechange','controlsdisabled','controlsenabled','debugon','debugoff','disablepictureinpicturechanged','dispose','enterFullWindow','error','exitFullWindow','firstplay','fullscreenerror','languagechange','loadedmetadata','loadstart','playerreset','playerresize','posterchange','ready','textdata','useractive','userinactive','usingcustomcontrols','usingnativecontrols'];
 
 	static DEFAULT_PLAY_ORDER = ["webrtc", "hls"];
 
@@ -234,6 +236,9 @@ export class WebPlayer {
         WebPlayer.LL_HLS_Folder = "ll-hls";
 
 		WebPlayer.VIDEO_PLAYER_ID = "video-player";
+
+        WebPlayer.PLAYER_EVENTS = ['abort','canplay','canplaythrough','durationchange','emptied','ended','error','loadeddata','loadedmetadata','loadstart','pause','play','playing','progress','ratechange','seeked','seeking','stalled','suspend','timeupdate','volumechange','waiting','enterpictureinpicture','leavepictureinpicture','fullscreenchange','resize','audioonlymodechange','audiopostermodechange','controlsdisabled','controlsenabled','debugon','debugoff','disablepictureinpicturechanged','dispose','enterFullWindow','error','exitFullWindow','firstplay','fullscreenerror','languagechange','loadedmetadata','loadstart','playerreset','playerresize','posterchange','ready','textdata','useractive','userinactive','usingcustomcontrols','usingnativecontrols'];
+
 		
 		// Initialize default values
         this.setDefaults();
@@ -398,6 +403,7 @@ export class WebPlayer {
         this.ptzMovement = "relative";
         this.restAPIPromise = null;
         this.isIPCamera = false;
+        this.playerEvents = WebPlayer.PLAYER_EVENTS
     }
     
     initializeFromUrlParams() {
@@ -641,22 +647,6 @@ export class WebPlayer {
 
         });
 
-        this.videojsPlayer.on('error', (e) => {
-            Logger.warn("There is an error in playback: ", e);
-            // We need to add this kind of check. If we don't add this kind of checkpoint, it will create an infinite loop
-            if (!this.errorCalled) {
-                this.errorCalled = true;
-                setTimeout(() => {
-                    this.tryNextTech();
-                    this.errorCalled = false;
-                }, 2500)
-            }
-
-            if (this.playerListener != null) {
-                this.playerListener("error", e);
-            }
-        });
-
 		//webrtc specific events
 		if (extension == "webrtc") {
 
@@ -762,82 +752,7 @@ export class WebPlayer {
             this.makeVideoJSVisibleWhenReady();
         }
 
-        this.videojsPlayer.on('ended', () => {
-            //reinit to play after it ends
-            Logger.warn("stream is ended")
-            this.setPlayerVisible(false);
-            //for webrtc, this event can be called by two reasons
-            //1. ice connection is not established, it means that there is a networking issug
-            //2. stream is ended
-            if (this.currentPlayType != "vod") {
-                //if it's vod, it means that stream is ended and no need to replay
-
-                if (this.iceConnected) {
-                    //if iceConnected is true, it means that stream is really ended for webrtc
-
-                    //initialize to play again if the publishing starts again
-                    this.playIfExists(this.playOrder[0]);
-                }
-                else if (this.currentPlayType == "hls") {
-                    //if it's hls, it means that stream is ended
-
-                    this.setPlayerVisible(false);
-                    if (this.playOrder[0] = "hls")
-                    {
-                        //do not play again if it's hls because it play last seconds again, let the server clear it
-                        setTimeout(() => {
-                            this.playIfExists(this.playOrder[0]);
-                        }, 10000);
-                    }
-                    else
-                    {
-                        this.playIfExists(this.playOrder[0]);
-                    }
-                    //TODO: what if the stream is hls vod then it always re-play
-                }
-                else {
-                    //if iceConnected is false, it means that there is a networking issue for webrtc
-                    this.tryNextTech();
-                }
-            }
-            if (this.playerListener != null) {
-                this.playerListener("ended");
-            }
-        });
-
-        //webrtc plugin sends play event. On the other hand, webrtc plugin sends ready event for every scenario.
-        //so no need to trust ready event for webrt play
-        this.videojsPlayer.on("play", () => {
-            this.setPlayerVisible(true);
-            if (this.playerListener != null) {
-                this.playerListener("play");
-            }
-
-            if(this.restJwt){
-                this.isIpCameraBroadcast();
-            }
-            else if (this.isIPCamera){
-                this.injectPtzElements();  
-            }
-        });
-
-        this.videojsPlayer.on("playing", () => {
-            if (this.playerListener != null) {
-                this.playerListener("playing");
-            }
-        });
-
-        this.videojsPlayer.on("timeupdate", () => {
-            if (this.playerListener != null) {
-                this.playerListener("timeupdate");
-            }
-        });
-
-        this.videojsPlayer.on("pause", () => {
-            if (this.playerListener != null) {
-                this.playerListener("pause");
-            }
-        });
+        this.listenPlayerEvents()
 
         this.iceConnected = false;
 
@@ -865,6 +780,111 @@ export class WebPlayer {
                 Logger.warn("Problem in playback. The error is " + e);
             });
         }
+    }
+
+    listenPlayerEvents() {
+        this.playerEvents.forEach(event => {
+            this.videojsPlayer.on(event, (eventData) => {
+                switch (event) {
+                    case 'play':
+                        this.setPlayerVisible(true);
+                        if (this.playerListener != null) {
+                            this.playerListener("play");
+                        }
+            
+                        if(this.restJwt){
+                            this.isIpCameraBroadcast();
+                        }
+                        else if (this.isIPCamera){
+                            this.injectPtzElements();  
+                        }
+                        break;
+                    case 'ended':
+                        //reinit to play after it ends
+                        Logger.warn("stream is ended")
+                        this.setPlayerVisible(false);
+                        //for webrtc, this event can be called by two reasons
+                        //1. ice connection is not established, it means that there is a networking issug
+                        //2. stream is ended
+                        if (this.currentPlayType != "vod") {
+                            //if it's vod, it means that stream is ended and no need to replay
+                
+                            if (this.iceConnected) {
+                                //if iceConnected is true, it means that stream is really ended for webrtc
+                
+                                //initialize to play again if the publishing starts again
+                                this.playIfExists(this.playOrder[0]);
+                            }
+                            else if (this.currentPlayType == "hls") {
+                                //if it's hls, it means that stream is ended
+                
+                                this.setPlayerVisible(false);
+                                if (this.playOrder[0] = "hls")
+                                {
+                                    //do not play again if it's hls because it play last seconds again, let the server clear it
+                                    setTimeout(() => {
+                                        this.playIfExists(this.playOrder[0]);
+                                    }, 10000);
+                                }
+                                else
+                                {
+                                    this.playIfExists(this.playOrder[0]);
+                                }
+                                //TODO: what if the stream is hls vod then it always re-play
+                            }
+                            else {
+                                //if iceConnected is false, it means that there is a networking issue for webrtc
+                                this.tryNextTech();
+                            }
+                        }
+                        if (this.playerListener != null) {
+                            this.playerListener(event);
+                        }
+                        break;
+                    case 'timeupdate':
+                        if (this.playerListener != null) {
+                            this.playerListener(event, eventData, { currentTime: this.videojsPlayer.currentTime() });
+                        }
+                        break;
+                    case 'progress':
+                        if (this.playerListener != null) {
+                            this.playerListener(event, eventData, { bufferedPercent: this.videojsPlayer.bufferedPercent() });
+                        }
+                        break;
+                    case 'volumechange':
+                        if (this.playerListener != null) {
+                            this.playerListener(event, eventData, { 
+                                volume: this.videojsPlayer.volume(),
+                                muted: this.videojsPlayer.muted()
+                            });
+                        }
+                        break;
+                    case 'ratechange':
+                        if (this.playerListener != null) {
+                            this.playerListener(event, eventData, { playbackRate: this.videojsPlayer.playbackRate() });
+                        }
+                        break;
+                    case 'error':
+                        Logger.warn("There is an error in playback: ", eventData);
+                        // We need to add this kind of check. If we don't add this kind of checkpoint, it will create an infinite loop
+                        if (!this.errorCalled) {
+                            this.errorCalled = true;
+                            setTimeout(() => {
+                                this.tryNextTech();
+                                this.errorCalled = false;
+                            }, 2500)
+                        }
+                        if(this.playerListener != null){
+                            this.playerListener("error", eventData)
+                        }
+                        break;
+                    default:
+                        if (this.playerListener != null) {
+                            this.playerListener(event, eventData);
+                        }
+                }
+            });
+        }); 
     }
 
     listenForID3MetaData() {
