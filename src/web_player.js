@@ -99,7 +99,7 @@ export class WebPlayer {
 
 
     /**
-     * controls: Wether to show .
+     * controls: Toggles the visibility of player controls.
      */
     controls = true;
 
