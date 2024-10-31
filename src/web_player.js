@@ -97,6 +97,12 @@ export class WebPlayer {
      */
     mute = false;
 
+
+    /**
+     * controls: Toggles the visibility of player controls.
+     */
+    controls = true;
+
     /**
      * Force the Player to play with audio Auto Play might not work.
      */
@@ -639,7 +645,7 @@ export class WebPlayer {
                     limitRenditionByPlayerDimensions: false
                 }
             },
-            controls: true,
+            controls: this.controls,
             class: 'video-js vjs-default-skin vjs-big-play-centered',
             muted: this.mute,
             preload: "auto",
