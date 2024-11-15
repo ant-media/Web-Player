@@ -20,6 +20,10 @@ export class WebPlayer {
 
 	static DEFAULT_PLAY_TYPE  =  ["mp4", "webm"];
 
+    static DEFAULT_BACKUP_STREAM_MAX_TRY_ATTEMPT = 5
+
+    static DEFAULT_BACKUP_STREAM_TRY_ATTEMPT_INTERVAL_MS = 5000
+
 	static HLS_EXTENSION  = "m3u8";
 
 	static WEBRTC_EXTENSION = "webrtc";
@@ -35,7 +39,6 @@ export class WebPlayer {
 	* lowLatencyHlsFolder: ll-hls folder. Optional. Default value is "ll-hls"
 	*/
     static LL_HLS_FOLDER = "ll-hls";
-
     
     /**
      * Video HTML content. It's by default STATIC_VIDEO_HTML
@@ -97,7 +100,6 @@ export class WebPlayer {
      */
     mute = false;
 
-
     /**
      * controls: Toggles the visibility of player controls.
      */
@@ -112,8 +114,7 @@ export class WebPlayer {
      * targetLatency: target latency in seconds. Optional. Default value is 3.
      * It will be taken from url parameter "targetLatency".
      * It's used for dash(cmaf) playback.
-     */
-    
+     */    
     targetLatency = 3;
 
     /**
@@ -220,6 +221,31 @@ export class WebPlayer {
      * Is IP Camera
      */
     isIPCamera;
+    
+    /**
+     * Stream id of backup stream.
+     */
+    backupStreamId;
+
+    /**
+     * Periodic timer interval for trying to play backup stream.
+     */
+    backupStreamPlayerInterval;
+
+    /**
+     * Current number of attempts to play the backup stream.
+     */
+    backupStreamTryCount;
+
+    /**
+     * Maximum allowed attempts to play the backup stream.
+     */
+    maxBackupStreamTryCount;
+
+    /**
+     * Time to wait between backup stream play attempts in miliseconds.
+     */
+    backupStreamPlayerIntervalMs;
 
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
@@ -245,6 +271,9 @@ export class WebPlayer {
 
         WebPlayer.PLAYER_EVENTS = ['abort','canplay','canplaythrough','durationchange','emptied','ended','error','loadeddata','loadedmetadata','loadstart','pause','play','playing','progress','ratechange','seeked','seeking','stalled','suspend','timeupdate','volumechange','waiting','enterpictureinpicture','leavepictureinpicture','fullscreenchange','resize','audioonlymodechange','audiopostermodechange','controlsdisabled','controlsenabled','debugon','debugoff','disablepictureinpicturechanged','dispose','enterFullWindow','error','exitFullWindow','firstplay','fullscreenerror','languagechange','loadedmetadata','loadstart','playerreset','playerresize','posterchange','ready','textdata','useractive','userinactive','usingcustomcontrols','usingnativecontrols'];
 
+        WebPlayer.DEFAULT_BACKUP_STREAM_MAX_TRY_ATTEMPT = 5
+
+        WebPlayer.DEFAULT_BACKUP_STREAM_TRY_ATTEMPT_INTERVAL_MS = 5000
 		
 		// Initialize default values
         this.setDefaults();
@@ -410,6 +439,10 @@ export class WebPlayer {
         this.restAPIPromise = null;
         this.isIPCamera = false;
         this.playerEvents = WebPlayer.PLAYER_EVENTS
+        this.backupStreamId = null
+        this.maxBackupStreamTryCount = WebPlayer.DEFAULT_BACKUP_STREAM_MAX_TRY_ATTEMPT;
+        this.backupStreamTryCount = 0;
+        this.backupStreamPlayerIntervalMs = WebPlayer.DEFAULT_BACKUP_STREAM_TRY_ATTEMPT_INTERVAL_MS;
     }
     
     initializeFromUrlParams() {
@@ -560,17 +593,57 @@ export class WebPlayer {
         }
     }
 
+    isBackupStreamEnabled(){
+        return this.backupStreamId && this.playOrder.length === 1 && this.backupStreamTryCount !== this.maxBackupStreamTryCount
+    }
+
+    handleWebRTCErrorMessages(errors){
+        if(errors["error"] === "no_stream_exist" && this.isBackupStreamEnabled()){
+            this.startBackupStreamPlayerInterval();
+        } 
+        else if (errors["error"] == "no_stream_exist" || errors["error"] == "WebSocketNotConnected"
+            || errors["error"] == "not_initialized_yet" || errors["error"] == "data_store_not_available"
+            || errors["error"] == "highResourceUsage" || errors["error"] == "unauthorized_access"
+            || errors["error"] == "user_blocked") {
+
+            //handle high resource usage and not authroized errors && websocket disconnected
+            //Even if webrtc adaptor has auto reconnect scenario, we dispose the videojs immediately in tryNextTech
+            // so that reconnect scenario is managed here
+            this.tryNextTech();
+            
+
+        }
+        else if (errors["error"] == "notSetRemoteDescription") {
+            /*
+            * If getting codec incompatible or remote description error, it will redirect HLS player.
+            */
+            Logger.warn("notSetRemoteDescription error. Redirecting to HLS player.");
+            this.playIfExists("hls");
+        }
+
+        if (this.playerListener != null) {
+            this.playerListener("webrtc-error", errors);
+        }
+
+    }
 
     handleWebRTCInfoMessages(infos) {
-	    if (infos["info"] == "ice_connection_state_changed") {
+	    if (infos["info"] === "ice_connection_state_changed") {
             Logger.debug("ice connection state changed to " + infos["obj"].state);
-            if (infos["obj"].state == "completed" || infos["obj"].state == "connected") {
+            if (infos["obj"].state === "completed" || infos["obj"].state === "connected") {
+                if(this.backupStreamPlayerInterval){
+                    this.cancelBackupStreamPlayerInterval()
+                }
                 this.iceConnected = true;
             }
-            else if (infos["obj"].state == "failed" || infos["obj"].state == "disconnected" || infos["obj"].state == "closed") {
-				//
-				Logger.warn("Ice connection is not connected. tryNextTech to replay");
-				this.tryNextTech();
+            else if (infos["obj"].state === "failed" || infos["obj"].state === "disconnected" || infos["obj"].state === "closed") {
+                Logger.warn("Ice connection is not connected.")
+                if(this.isBackupStreamEnabled()){
+                    this.startBackupStreamPlayerInterval()
+                }else{
+                    Logger.warn("tryNextTech to replay");
+                    this.tryNextTech();
+                }
 			}
 
         }
@@ -589,13 +662,26 @@ export class WebPlayer {
         }
 	}
 
+    replaceStreamIdWithBackupStreamId(streamUrl, extension){
+        if(extension === "webrtc"){
+            const lastSlashIndex = streamUrl.lastIndexOf('/');
+            const lastDotIndex = streamUrl.lastIndexOf('.');
+            
+            if (lastSlashIndex !== -1 && lastDotIndex !== -1 && lastSlashIndex < lastDotIndex) {                
+                streamUrl = streamUrl.slice(0, lastSlashIndex + 1) + this.backupStreamId + streamUrl.slice(lastDotIndex);
+            }
+
+        }
+        return streamUrl;
+    }
+
     /**
      * Play the stream via videojs
      * @param {*} streamUrl
      * @param {*} extension
      * @returns
      */
-    playWithVideoJS(streamUrl, extension) {
+    playWithVideoJS(streamUrl, extension, playBackupStream) {
         var type;
         if (extension == "mp4") {
             type = "video/mp4";
@@ -628,8 +714,14 @@ export class WebPlayer {
             return;
         }
 
-        var preview = this.streamId;
-        if (this.streamId.endsWith("_adaptive")) {
+        var streamId = this.streamId;
+        if(playBackupStream){
+            streamId = this.backupStreamId;
+            streamUrl = this.replaceStreamIdWithBackupStreamId(streamUrl, extension)
+        }
+       
+        var preview = streamId;
+        if (streamId.endsWith("_adaptive")) {
             preview = streamId.substring(0, streamId.indexOf("_adaptive"));
         }
 
@@ -649,7 +741,7 @@ export class WebPlayer {
             class: 'video-js vjs-default-skin vjs-big-play-centered',
             muted: this.mute,
             preload: "auto",
-            autoplay: this.autoPlay
+            autoplay: this.autoPlay,
 
         });
 
@@ -658,7 +750,7 @@ export class WebPlayer {
 
 	        this.videojsPlayer.on('webrtc-info', (event, infos) => {
 
-	            //Logger.warn("info callback: " + JSON.stringify(infos));
+	            console.log("info callback: " + JSON.stringify(infos));
 				this.handleWebRTCInfoMessages(infos);
 	        });
 
@@ -666,28 +758,8 @@ export class WebPlayer {
 	        this.videojsPlayer.on('webrtc-error', (event, errors) => {
 	            //some of the possible errors, NotFoundError, SecurityError,PermissionDeniedError
 	            Logger.warn("error callback: " + JSON.stringify(errors));
-
-	            if (errors["error"] == "no_stream_exist" || errors["error"] == "WebSocketNotConnected"
-	                || errors["error"] == "not_initialized_yet" || errors["error"] == "data_store_not_available"
-	                || errors["error"] == "highResourceUsage" || errors["error"] == "unauthorized_access"
-	                || errors["error"] == "user_blocked") {
-
-	                //handle high resource usage and not authroized errors && websocket disconnected
-	                //Even if webrtc adaptor has auto reconnect scenario, we dispose the videojs immediately in tryNextTech
-	                // so that reconnect scenario is managed here
-					
-	                this.tryNextTech();
-	            }
-	            else if (errors["error"] == "notSetRemoteDescription") {
-	                /*
-	                * If getting codec incompatible or remote description error, it will redirect HLS player.
-	                */
-	                Logger.warn("notSetRemoteDescription error. Redirecting to HLS player.");
-	                this.playIfExists("hls");
-	            }
-                if (this.playerListener != null) {
-                    this.playerListener("webrtc-error", errors);
-                }
+                this.handleWebRTCErrorMessages(errors)
+             
 	        });
 
 	        this.videojsPlayer.on("webrtc-data-received", (event, obj) => {
@@ -986,6 +1058,42 @@ export class WebPlayer {
         return streamPath;
     }
 
+    cancelBackupStreamPlayerInterval(){
+        if(this.backupStreamPlayerInterval){
+            clearInterval(this.backupStreamPlayerInterval)
+            this.backupStreamPlayerInterval = null
+            this.backupStreamTryCount = 0;
+        }
+    }
+
+    startBackupStreamPlayerInterval(){
+        if(!this.backupStreamPlayerInterval){
+            Logger.warn("Setting backup stream player timer.")
+            this.tryBackupStream()
+            this.backupStreamPlayerInterval = setInterval(()=>{
+                if(this.backupStreamTryCount === this.maxBackupStreamTryCount){
+                    Logger.warn("Playing backup stream failed after " + this.maxBackupStreamTryCount+ " attempts. Giving up. Switch to try playing main stream.")
+                    this.cancelBackupStreamPlayerInterval()
+                    this.tryNextTech()
+                }else{
+                    this.tryBackupStream()
+                }
+            }, this.backupStreamPlayerIntervalMs)
+        }
+    }
+
+    tryBackupStream(){
+        this.backupStreamTryCount++;
+        Logger.warn("Trying to play backup stream. Attempt: "+ this.backupStreamTryCount)
+        this.destroyDashPlayer();
+        this.destroyVideoJSPlayer();
+        this.setPlayerVisible(false);
+        setTimeout(() => {
+            var playBackupStream = true;
+            this.playIfExists(this.currentPlayType, playBackupStream);
+        }, 500);
+    }
+
     /**
      * try next tech if current tech is not working
      */
@@ -1018,7 +1126,7 @@ export class WebPlayer {
      * play stream throgugh dash player
      * @param {string"} streamUrl
      */
-    playViaDash(streamUrl) {
+    playViaDash(streamUrl, playBackupStream) {
         this.destroyDashPlayer();
         this.dashPlayer = dashjs.MediaPlayer().create();
         this.dashPlayer.extend("RequestModifier", () => {
@@ -1089,11 +1197,11 @@ export class WebPlayer {
             {
                 //do not play again if it's dash because it play last seconds again, let the server clear it
                 setTimeout(() => {
-                    this.playIfExists(this.playOrder[0]);
+                    this.playIfExists(this.playOrder[0], playBackupStream);
                 }, 10000);
             }
             else {
-                this.playIfExists(this.playOrder[0]);
+                this.playIfExists(this.playOrder[0], playBackupStream);
             }
             if (this.playerListener != null) {
                 this.playerListener("ended");
@@ -1101,11 +1209,19 @@ export class WebPlayer {
         });
         this.dashPlayer.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR, (event) => {
             Logger.warn("dash playback error: " + event);
-            this.tryNextTech();
+            if(playBackupStream){
+                this.startBackupStreamPlayerInterval()
+            }else{
+                this.tryNextTech();
+            }
         });
         this.dashPlayer.on(dashjs.MediaPlayer.events.ERROR, (event) => {
             Logger.warn("error: " + event);
-            this.tryNextTech();
+            if(playBackupStream){
+                this.startBackupStreamPlayerInterval()
+            }else{
+                this.tryNextTech();
+            }
         });
 
         this.dashPlayer.on(dashjs.MediaPlayer.events.PLAYBACK_NOT_ALLOWED, (event) => {
@@ -1189,7 +1305,8 @@ export class WebPlayer {
      * play the stream with the given tech
      * @param {string} tech
      */
-    async playIfExists(tech) {
+    async playIfExists(tech, playBackupStream) {
+        var streamId = playBackupStream ? this.backupStreamId : this.streamId
         this.currentPlayType = tech;
         this.destroyVideoJSPlayer();
         this.destroyDashPlayer();
@@ -1198,75 +1315,93 @@ export class WebPlayer {
         this.containerElement.innerHTML = this.videoHTMLContent;
 
 
-        Logger.warn("Try to play the stream " + this.streamId + " with " + this.currentPlayType);
+        Logger.warn("Try to play the stream " + streamId + " with " + this.currentPlayType);
+        // eslint-disable-next-line default-case
         switch (this.currentPlayType) {
             case "hls":
                 //TODO: Test case for hls
                 //1. Play stream with adaptive m3u8 for live and VoD
                 //2. Play stream with m3u8 for live and VoD
                 //3. if files are not available check nextTech is being called
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId, WebPlayer.HLS_EXTENSION).then((streamPath) => {
-
-                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamId, WebPlayer.HLS_EXTENSION).then((streamPath) => {
+                    if(this.backupStreamPlayerInterval){
+                        this.cancelBackupStreamPlayerInterval()
+                    }
+                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION, playBackupStream);
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
 
-                    Logger.warn("HLS stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
-                    this.tryNextTech();
+                    Logger.warn("HLS stream resource not available for stream:" + streamId + " error is " + error + ". Try next play tech");
+                    if(this.isBackupStreamEnabled()){
+                        this.startBackupStreamPlayerInterval()
+                    }else{
+                        this.tryNextTech();
+                    }
                 });
             case "ll-hls":
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, this.streamId, WebPlayer.HLS_EXTENSION).then((streamPath) => {
-
-                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, streamId, WebPlayer.HLS_EXTENSION).then((streamPath) => {
+                    if(this.backupStreamPlayerInterval){
+                        this.cancelBackupStreamPlayerInterval()
+                    }
+                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION, playBackupStream);
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
 
-                    Logger.warn("LL-HLS stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
-                    this.tryNextTech();
+                    Logger.warn("LL-HLS stream resource not available for stream:" + streamId + " error is " + error + ". Try next play tech");
+                    if(this.isBackupStreamEnabled()){
+                        this.startBackupStreamPlayerInterval()
+                    }else{
+                        this.tryNextTech();
+                    }
                 });
             case "dash":
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId + "/" + this.streamId, WebPlayer.DASH_EXTENSION).then((streamPath) => {
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamId + "/" + streamId, WebPlayer.DASH_EXTENSION).then((streamPath) => {
+                    if(this.backupStreamPlayerInterval){
+                        this.cancelBackupStreamPlayerInterval()
+                    }
                     this.playViaDash(streamPath);
                 }).catch((error) => {
-                    Logger.warn("DASH stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
-                    this.tryNextTech();
+                    Logger.warn("DASH stream resource not available for stream:" + streamId + " error is " + error + ". Try next play tech");
+                    if(this.isBackupStreamEnabled()){
+                        this.startBackupStreamPlayerInterval()
+                    }else{
+                        this.tryNextTech();
+                    }
                 });
 
             case "webrtc":
-              
-
-                return this.playWithVideoJS(this.addSecurityParams(this.websocketURL), WebPlayer.WEBRTC_EXTENSION);
+                return this.playWithVideoJS(this.addSecurityParams(this.websocketURL), WebPlayer.WEBRTC_EXTENSION, playBackupStream);
             case "vod":
                 //TODO: Test case for vod
                 //1. Play stream with mp4 for VoD
                 //2. Play stream with webm for VoD
                 //3. Play stream with playOrder type
 
-                var lastIndexOfDot = this.streamId.lastIndexOf(".");
+                var lastIndexOfDot = streamId.lastIndexOf(".");
                 var extension;
                 if (lastIndexOfDot != -1)
                 {
                     //if there is a dot in the streamId, it means that this is extension, use it. make the extension empty
                     this.playType[0] = "";
-                    extension = this.streamId.substring(lastIndexOfDot + 1);
+                    extension = streamId.substring(lastIndexOfDot + 1);
                 }
                 else {
 					//we need to give extension to playWithVideoJS
 					extension = this.playType[0];
 				}
 
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId,  this.playType[0]).then((streamPath) => {
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamId,  this.playType[0]).then((streamPath) => {
 
                     //we need to give extension to playWithVideoJS
                     this.playWithVideoJS(streamPath, extension);
 
                 }).catch((error) => {
-                    Logger.warn("VOD stream resource not available for stream:" + this.streamId + " and play type " + this.playType[0] + ". Error is " + error);
+                    Logger.warn("VOD stream resource not available for stream:" + streamId + " and play type " + this.playType[0] + ". Error is " + error);
                     if (this.playType.length > 1) {
                         Logger.warn("Try next play type which is " + this.playType[1] + ".")
-                        this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId, this.playType[1]).then((streamPath) => {
+                        this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamId, this.playType[1]).then((streamPath) => {
                             this.playWithVideoJS(streamPath, this.playType[1]);
                         }).catch((error) => {
                             Logger.warn("VOD stream resource not available for stream:" + this.streamId + " and play type error is " + error);

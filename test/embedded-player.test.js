@@ -1,6 +1,5 @@
 
 import { STATIC_VIDEO_HTML, WebPlayer } from '../dist/es/web_player.js';
-
 //import { isMobile } from "../../../main/js/fetch.stream.js";
 
 describe("WebPlayer", function() {
@@ -320,7 +319,7 @@ describe("WebPlayer", function() {
 	    var testFolder = "testFolder";
 	    var streamId = "stream123";
 	    var extension = "m3u8";
-	    await  player.checkStreamExistsViaHttp(testFolder, streamId, extension).then((streamPath) => {
+	    await player.checkStreamExistsViaHttp(testFolder, streamId, extension).then((streamPath) => {
 			expect(streamPath).to.be.equal("http://example.antmedia.io:5080" + "/" + testFolder + "/" + streamId + "_adaptive" + "." + extension);
 		}).catch((err) => {
 			expect.fail("it should not throw exception. error:" +  err);
@@ -442,7 +441,7 @@ describe("WebPlayer", function() {
 	    expect(destroyDashPlayer.calledOnce).to.be.true;
 	    expect(destroyVideoJSPlayer.calledOnce).to.be.true;
 	    expect(setPlayerVisible.calledOnce).to.be.true;
-	     expect(setPlayerVisible.calledWithMatch(false)).to.be.true;
+	    expect(setPlayerVisible.calledWithMatch(false)).to.be.true;
 	    
 	    clock.tick(2500);
 	    
@@ -610,7 +609,7 @@ describe("WebPlayer", function() {
 		
 		await player.playIfExists("webrtc");	
 		expect(playWithVideoJS.callCount).to.be.equal(1);
-		expect(playWithVideoJS.calledWithExactly("ws://example.com:5080/stream123.webrtc", "webrtc")).to.be.true;
+		expect(playWithVideoJS.calledWithExactly("ws://example.com:5080/stream123.webrtc", "webrtc", undefined)).to.be.true;
 		
 	});
 	
@@ -726,71 +725,111 @@ describe("WebPlayer", function() {
 	
 	
 	it("handleWebRTCInfoMessages", async function() {
-
 		var videoContainer = document.createElement("video_container");
-
 		var placeHolder = document.createElement("place_holder");
-
-		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:"  };
+	
+		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:" };
 		var windowComponent = {
 			location: locationComponent,
 			document: document,
 			addEventListener: window.addEventListener
 		};
-
+	
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake.returns(Promise.resolve("")));
+		var cancelBackupStreamPlayerInterval = sinon.replace(player, "cancelBackupStreamPlayerInterval", sinon.fake());
+		var isBackupStreamEnabledSpy = sinon.spy(player, "isBackupStreamEnabled"); // Use spy here
+		var startBackupStreamPlayerInterval = sinon.replace(player, "startBackupStreamPlayerInterval", sinon.fake());
+	
 		var infos = {
 			info: "ice_connection_state_changed",
 			obj: {
 				state: "completed"
 			}
-		}
+		};
+	
 		expect(player.iceConnected).to.be.false;
 		player.handleWebRTCInfoMessages(infos);
 		expect(player.iceConnected).to.be.true;
-
+	
 		infos = {
 			info: "ice_connection_state_changed",
 			obj: {
 				state: "failed"
 			}
-		}
+		};
 		player.handleWebRTCInfoMessages(infos);
-
+	
 		expect(tryNextTech.calledOnce).to.be.true;
-
+	
 		infos = {
 			info: "closed",
-
-		}
+		};
 		player.handleWebRTCInfoMessages(infos);
-
+	
 		expect(tryNextTech.calledTwice).to.be.true;
-		
+	
 		await player.playIfExists("webrtc");
-
+	
 		expect(player.videojsPlayer).to.not.be.null;
-		
+	
 		var pauseMethod = sinon.replace(player.videojsPlayer, "pause", sinon.fake());
 		var playMethod = sinon.replace(player.videojsPlayer, "play", sinon.fake());
-		
+	
 		infos = {
 			info: "resolutionChangeInfo",
-		}
-		
+		};
+	
 		player.handleWebRTCInfoMessages(infos);
-		
+	
 		expect(pauseMethod.calledOnce).to.be.true;
 		expect(playMethod.calledOnce).to.be.false;
-		
-		
+	
 		clock.tick(2500);
-		
+	
 		expect(pauseMethod.calledOnce).to.be.true;
 		expect(playMethod.calledOnce).to.be.true;
+	
+		infos = {
+			info: "ice_connection_state_changed",
+			obj: {
+				state: "completed"
+			}
+		};
+		player.backupStreamPlayerInterval = 1;
+	
+		player.handleWebRTCInfoMessages(infos);
+	
+		infos = {
+			info: "ice_connection_state_changed",
+			obj: {
+				state: "connected"
+			}
+		};
+	
+		player.handleWebRTCInfoMessages(infos);
+	
+		expect(cancelBackupStreamPlayerInterval.calledTwice).to.be.true;
+	
+		// Set up player properties to ensure isBackupStreamEnabled returns true
+		player.backupStreamId = "backupStreamId";
+		player.playOrder = ["webrtc"]; // Ensure playOrder length is 1
+		player.backupStreamTryCount = 1;
+		player.maxBackupStreamTryCount = 5;
+	
+		infos = {
+			info: "ice_connection_state_changed",
+			obj: {
+				state: "failed"
+			}
+		};
+	
+		player.handleWebRTCInfoMessages(infos);
+	
+		expect(isBackupStreamEnabledSpy.calledTwice).to.be.true;
+		expect(isBackupStreamEnabledSpy.returned(true)).to.be.true;
 		
-
+		expect(startBackupStreamPlayerInterval.calledOnce).to.be.true;
 	});
 
 	it("testAutoPlay",async function(){
@@ -1103,8 +1142,312 @@ describe("WebPlayer", function() {
 		expect(player.playerListener.calledWith('ratechange', sinon.match.any, { playbackRate: 1.0 })).to.be.true;
 		
 	})
-    
-    
+
+	it("Start backup stream interval", async function() {
+		this.timeout(10000);
+	  
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+	  
+		var locationComponent = {
+		  href: 'http://example.com?id=stream123',
+		  search: "?id=stream123",
+		  pathname: "/",
+		  protocol: "http:"
+		};
+		var windowComponent = {
+		  location: locationComponent,
+		  document: document
+		};
+	  
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+	  
+		var tryBackupStream = sinon.replace(player, "tryBackupStream", sinon.fake());
+		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake());
+		var cancelBackupStreamPlayerInterval = sinon.replace(player, "cancelBackupStreamPlayerInterval", sinon.fake());
+	  
+		player.playOrder = ["webrtc"];
+		player.backupStreamId = "backupStreamId";
+		player.currentPlayType = "webrtc";
+	  
+		player.startBackupStreamPlayerInterval();
+	  
+		expect(tryBackupStream.calledOnce).to.be.true;
+		expect(player.backupStreamPlayerInterval).to.not.be.undefined;
+		expect(player.backupStreamTryCount).to.equal(0);
+		
+		// Simulate backup stream failure after max attempts
+		player.backupStreamTryCount = player.maxBackupStreamTryCount;
+		player.startBackupStreamPlayerInterval();
+		clock.tick(player.backupStreamPlayerIntervalMs);
+		
+		expect(cancelBackupStreamPlayerInterval.calledOnce).to.be.true;
+		expect(tryNextTech.calledOnce).to.be.true;
+	});
+
+	it("Cancel backup stream interval on success", async function(){
+
+		var videoContainer = document.createElement("video_container");
+		  
+		var placeHolder = document.createElement("place_holder");
+		  			
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/", protocol:"http:" };
+		var windowComponent = {  location : locationComponent,
+		  						  document:  document,
+		  						  addEventListener: window.addEventListener};
+		  						  		 	      
+	    var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+		var cancelBackupStreamPlayerInterval = sinon.replace(player, "cancelBackupStreamPlayerInterval", sinon.fake());
+		var checkStreamExistsViaHttp = sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.returns(Promise.resolve("streams/stream123.m3u8")));
+
+	    player.backupStreamPlayerInterval = 1
+
+	    await player.playIfExists("hls");
+		await player.playIfExists("ll-hls");
+		await player.playIfExists("dash")
+
+		sinon.assert.calledThrice(checkStreamExistsViaHttp);
+		sinon.assert.calledThrice(cancelBackupStreamPlayerInterval);
+
+	})	
+
+	it("Webrtc play backup stream", async function() {
+		var videoContainer = document.createElement("div");
+		var placeHolder = document.createElement("div");   
+	
+		var streamId = "stream123";
+		var backupStreamId = "backupStreamId";
+	
+		var wsUrl = "ws://example.com/" + streamId + ".webrtc";
+		var backupWsUrl = "ws://example.com/" + backupStreamId + ".webrtc";
+	
+		var locationComponent = {
+			href: 'http://example.com?id=stream123',
+			search: "?id=stream123",
+			pathname: "/",
+			protocol: "http:"
+		};
+	
+		var windowComponent = {
+			location: locationComponent,
+			document: document,
+			addEventListener: window.addEventListener
+		};
+	
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+	
+		var vjsMock = {
+			play: sinon.fake.resolves(),    // Mock play to return a resolved promise
+			muted: sinon.fake(),            // Mock muted method
+			controls: true,
+			class: 'video-js vjs-default-skin vjs-big-play-centered',
+			preload: "auto",
+			autoplay: true,
+			poster: "test",
+			liveui: true,
+			liveTracker: {
+				trackingThreshold: 0
+			},
+			html5: {
+				vhs: {
+					limitRenditionByPlayerDimensions: false
+				}
+			},
+			on: sinon.fake(),
+			src: sinon.fake()
+		};
+	
+		const mockVideoJS = sinon.stub(window, 'videojs').returns(vjsMock);
+	
+		sinon.replace(vjsMock, "muted", sinon.fake());
+	
+		player.websocketURL = wsUrl;
+		player.streamId = streamId;
+		player.backupStreamId = backupStreamId;
+	
+		var replaceStreamIdWithBackupStreamIdSpy = sinon.spy(player, "replaceStreamIdWithBackupStreamId");
+		var playWithVideoJSSpy = sinon.spy(player, "playWithVideoJS");
+	
+		await player.playIfExists("webrtc", true);
+	
+		expect(playWithVideoJSSpy.calledOnce).to.be.true;
+		expect(replaceStreamIdWithBackupStreamIdSpy.calledOnce).to.be.true;
+	
+		expect(replaceStreamIdWithBackupStreamIdSpy.returnValues[0]).to.equal("ws://example.com/" + backupStreamId + ".webrtc");
+	
+		expect(mockVideoJS.calledWith(WebPlayer.VIDEO_PLAYER_ID)).to.be.true;
+		
+		expect(vjsMock.src.calledOnce).to.be.true;
+		expect(vjsMock.src.calledWith({
+			src: backupWsUrl,       // Check if 'src' was called with the expected WebSocket URL
+			type: 'video/webrtc',  
+			withCredentials: true,
+			iceServers: player.iceServers,
+			reconnect: false  
+		})).to.be.true;
+
+	});
+	
+
+	it("tryBackupStream", async function() {
+		this.timeout(2000);
+	  
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+	  
+		var locationComponent = {
+		  href: 'http://example.com?id=stream123',
+		  search: "?id=stream123",
+		  pathname: "/",
+		  protocol: "http:"
+		};
+		var windowComponent = {
+		  location: locationComponent,
+		  document: document
+		};
+	  
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+		player.currentPlayType = "webrtc";
+
+		var destroyDashPlayer = sinon.replace(player, "destroyDashPlayer", sinon.fake());
+		var destroyVideoJSPlayer = sinon.replace(player, "destroyVideoJSPlayer", sinon.fake());
+		var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
+		var playIfExists = sinon.replace(player, "playIfExists", sinon.fake());
+
+		player.tryBackupStream();
+	
+		expect(player.backupStreamTryCount).to.equal(1);
+		sinon.assert.called(destroyDashPlayer);
+		sinon.assert.called(destroyVideoJSPlayer);
+		sinon.assert.calledWith(setPlayerVisible, false);
+		clock.tick(600);
+		sinon.assert.calledWith(playIfExists, "webrtc", true)
+
+	  });
+
+	  it("cancelBackupStreamPlayerInterval", async function() {
+		this.timeout(2000);
+	  
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+	  
+		var locationComponent = {
+		  href: 'http://example.com?id=stream123',
+		  search: "?id=stream123",
+		  pathname: "/",
+		  protocol: "http:"
+		};
+		var windowComponent = {
+		  location: locationComponent,
+		  document: document
+		};
+	  
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+		player.backupStreamPlayerInterval = 1
+		player.backupStreamTryCount = 1
+
+		player.cancelBackupStreamPlayerInterval()
+		expect(player.backupStreamTryCount).to.equal(0);
+		expect(player.backupStreamPlayerInterval).to.be.null;
+	  })
+
+	  it("playIfExists backup stream hls, dash fails", async function() {
+		this.timeout(2000);
+	  
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+	  
+		var locationComponent = {
+		  href: 'http://example.com?id=stream123',
+		  search: "?id=stream123",
+		  pathname: "/",
+		  protocol: "http:"
+		};
+		var windowComponent = {
+		  location: locationComponent,
+		  document: document
+		};
+	  
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+		
+		var destroyDashPlayer = sinon.replace(player, "destroyDashPlayer", sinon.fake());
+		var destroyVideoJSPlayer = sinon.replace(player, "destroyVideoJSPlayer", sinon.fake());
+		var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
+		var isBackupStreamEnabledSpy = sinon.spy(player, "isBackupStreamEnabled"); 
+		var startBackupStreamPlayerInterval = sinon.replace(player, "startBackupStreamPlayerInterval", sinon.fake());
+
+
+		sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.rejects(new Error("Stream not found")));
+
+	
+		var playBackupStream = true;
+
+		player.playOrder = ["hls"]
+		player.backupStreamId = "backupStreamId"
+		player.backupStreamTryCount = 0
+		player.maxBackupStreamTryCount = 2
+
+		await player.playIfExists("hls", playBackupStream)
+		await player.playIfExists("dash", playBackupStream)
+
+		expect(isBackupStreamEnabledSpy.calledTwice).to.be.true;
+		expect(startBackupStreamPlayerInterval.calledTwice).to.be.true;
+	  })
+
+	  it("handleWebRTCErrorMessages", async function() {
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+	
+		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:" };
+		var windowComponent = {
+			location: locationComponent,
+			document: document,
+			addEventListener: window.addEventListener
+		};
+	
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake.returns(Promise.resolve("")));
+		var playIfExists = sinon.replace(player, "playIfExists", sinon.fake());
+		var isBackupStreamEnabledSpy = sinon.spy(player, "isBackupStreamEnabled"); 
+		var startBackupStreamPlayerInterval = sinon.replace(player, "startBackupStreamPlayerInterval", sinon.fake());
+
+		var errors = {
+			error: "no_stream_exist",
+		};
+	
+		player.backupStreamId = "backupStreamId";
+		player.playOrder = ["webrtc"];
+		player.backupStreamTryCount = 1;
+		player.maxBackupStreamTryCount = 5;
+
+
+		player.handleWebRTCErrorMessages(errors);
+
+		expect(isBackupStreamEnabledSpy.calledOnce).to.be.true;
+		expect(isBackupStreamEnabledSpy.returned(true)).to.be.true;
+		expect(startBackupStreamPlayerInterval.calledOnce).to.be.true;
+
+		var errors = {
+			error: "no_stream_exist",
+		};
+
+		player.backupStreamTryCount = 5;
+		player.maxBackupStreamTryCount = 5;
+
+		player.handleWebRTCErrorMessages(errors);
+
+		expect(tryNextTech.calledOnce).to.be.true;
+
+		var errors = {
+			error: "notSetRemoteDescription",
+		};
+
+		player.handleWebRTCErrorMessages(errors);
+
+		expect(playIfExists.calledWith("hls")).to.be.true;
+
+	});
+
 });
 
 
