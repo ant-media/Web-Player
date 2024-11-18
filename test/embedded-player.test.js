@@ -736,10 +736,12 @@ describe("WebPlayer", function() {
 		};
 	
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+		player.triedBackupStream = false;
+
 		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake.returns(Promise.resolve("")));
-		var cancelBackupStreamPlayerInterval = sinon.replace(player, "cancelBackupStreamPlayerInterval", sinon.fake());
 		var isBackupStreamEnabledSpy = sinon.spy(player, "isBackupStreamEnabled"); // Use spy here
-		var startBackupStreamPlayerInterval = sinon.replace(player, "startBackupStreamPlayerInterval", sinon.fake());
+		var tryBackupStream = sinon.replace(player, "tryBackupStream", sinon.fake());
 	
 		var infos = {
 			info: "ice_connection_state_changed",
@@ -796,7 +798,6 @@ describe("WebPlayer", function() {
 				state: "completed"
 			}
 		};
-		player.backupStreamPlayerInterval = 1;
 	
 		player.handleWebRTCInfoMessages(infos);
 	
@@ -809,13 +810,11 @@ describe("WebPlayer", function() {
 	
 		player.handleWebRTCInfoMessages(infos);
 	
-		expect(cancelBackupStreamPlayerInterval.calledTwice).to.be.true;
 	
 		// Set up player properties to ensure isBackupStreamEnabled returns true
 		player.backupStreamId = "backupStreamId";
 		player.playOrder = ["webrtc"]; // Ensure playOrder length is 1
-		player.backupStreamTryCount = 1;
-		player.maxBackupStreamTryCount = 5;
+		player.triedBackupStream = false
 	
 		infos = {
 			info: "ice_connection_state_changed",
@@ -829,7 +828,7 @@ describe("WebPlayer", function() {
 		expect(isBackupStreamEnabledSpy.calledTwice).to.be.true;
 		expect(isBackupStreamEnabledSpy.returned(true)).to.be.true;
 		
-		expect(startBackupStreamPlayerInterval.calledOnce).to.be.true;
+		expect(tryBackupStream.calledOnce).to.be.true;
 	});
 
 	it("testAutoPlay",async function(){
@@ -1143,73 +1142,6 @@ describe("WebPlayer", function() {
 		
 	})
 
-	it("Start backup stream interval", async function() {
-		this.timeout(10000);
-	  
-		var videoContainer = document.createElement("video_container");
-		var placeHolder = document.createElement("place_holder");
-	  
-		var locationComponent = {
-		  href: 'http://example.com?id=stream123',
-		  search: "?id=stream123",
-		  pathname: "/",
-		  protocol: "http:"
-		};
-		var windowComponent = {
-		  location: locationComponent,
-		  document: document
-		};
-	  
-		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
-	  
-		var tryBackupStream = sinon.replace(player, "tryBackupStream", sinon.fake());
-		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake());
-		var cancelBackupStreamPlayerInterval = sinon.replace(player, "cancelBackupStreamPlayerInterval", sinon.fake());
-	  
-		player.playOrder = ["webrtc"];
-		player.backupStreamId = "backupStreamId";
-		player.currentPlayType = "webrtc";
-	  
-		player.startBackupStreamPlayerInterval();
-	  
-		expect(tryBackupStream.calledOnce).to.be.true;
-		expect(player.backupStreamPlayerInterval).to.not.be.undefined;
-		expect(player.backupStreamTryCount).to.equal(0);
-		
-		// Simulate backup stream failure after max attempts
-		player.backupStreamTryCount = player.maxBackupStreamTryCount;
-		player.startBackupStreamPlayerInterval();
-		clock.tick(player.backupStreamPlayerIntervalMs);
-		
-		expect(cancelBackupStreamPlayerInterval.calledOnce).to.be.true;
-		expect(tryNextTech.calledOnce).to.be.true;
-	});
-
-	it("Cancel backup stream interval on success", async function(){
-
-		var videoContainer = document.createElement("video_container");
-		  
-		var placeHolder = document.createElement("place_holder");
-		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/", protocol:"http:" };
-		var windowComponent = {  location : locationComponent,
-		  						  document:  document,
-		  						  addEventListener: window.addEventListener};
-		  						  		 	      
-	    var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
-		var cancelBackupStreamPlayerInterval = sinon.replace(player, "cancelBackupStreamPlayerInterval", sinon.fake());
-		var checkStreamExistsViaHttp = sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.returns(Promise.resolve("streams/stream123.m3u8")));
-
-	    player.backupStreamPlayerInterval = 1
-
-	    await player.playIfExists("hls");
-		await player.playIfExists("ll-hls");
-		await player.playIfExists("dash")
-
-		sinon.assert.calledThrice(checkStreamExistsViaHttp);
-		sinon.assert.calledThrice(cancelBackupStreamPlayerInterval);
-
-	})	
 
 	it("Webrtc play backup stream", async function() {
 		var videoContainer = document.createElement("div");
@@ -1309,23 +1241,15 @@ describe("WebPlayer", function() {
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 		player.currentPlayType = "webrtc";
 
-		var destroyDashPlayer = sinon.replace(player, "destroyDashPlayer", sinon.fake());
-		var destroyVideoJSPlayer = sinon.replace(player, "destroyVideoJSPlayer", sinon.fake());
-		var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
 		var playIfExists = sinon.replace(player, "playIfExists", sinon.fake());
 
 		player.tryBackupStream();
 	
-		expect(player.backupStreamTryCount).to.equal(1);
-		sinon.assert.called(destroyDashPlayer);
-		sinon.assert.called(destroyVideoJSPlayer);
-		sinon.assert.calledWith(setPlayerVisible, false);
-		clock.tick(600);
 		sinon.assert.calledWith(playIfExists, "webrtc", true)
 
 	  });
 
-	  it("cancelBackupStreamPlayerInterval", async function() {
+	  it("playIfExists backup stream hls, ll-hls, dash fails", async function() {
 		this.timeout(2000);
 	  
 		var videoContainer = document.createElement("video_container");
@@ -1343,58 +1267,29 @@ describe("WebPlayer", function() {
 		};
 	  
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
-		player.backupStreamPlayerInterval = 1
-		player.backupStreamTryCount = 1
 
-		player.cancelBackupStreamPlayerInterval()
-		expect(player.backupStreamTryCount).to.equal(0);
-		expect(player.backupStreamPlayerInterval).to.be.null;
-	  })
-
-	  it("playIfExists backup stream hls, dash fails", async function() {
-		this.timeout(2000);
-	  
-		var videoContainer = document.createElement("video_container");
-		var placeHolder = document.createElement("place_holder");
-	  
-		var locationComponent = {
-		  href: 'http://example.com?id=stream123',
-		  search: "?id=stream123",
-		  pathname: "/",
-		  protocol: "http:"
-		};
-		var windowComponent = {
-		  location: locationComponent,
-		  document: document
-		};
-	  
-		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
-		
-		var destroyDashPlayer = sinon.replace(player, "destroyDashPlayer", sinon.fake());
-		var destroyVideoJSPlayer = sinon.replace(player, "destroyVideoJSPlayer", sinon.fake());
-		var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
 		var isBackupStreamEnabledSpy = sinon.spy(player, "isBackupStreamEnabled"); 
-		var startBackupStreamPlayerInterval = sinon.replace(player, "startBackupStreamPlayerInterval", sinon.fake());
-
+		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake());
 
 		sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.rejects(new Error("Stream not found")));
 
-	
 		var playBackupStream = true;
 
-		player.playOrder = ["hls"]
 		player.backupStreamId = "backupStreamId"
-		player.backupStreamTryCount = 0
-		player.maxBackupStreamTryCount = 2
 
+		//try to play backup stream, fail, then try main stream(try next tech.)
 		await player.playIfExists("hls", playBackupStream)
+		await player.playIfExists("ll-hls", playBackupStream)
 		await player.playIfExists("dash", playBackupStream)
 
-		expect(isBackupStreamEnabledSpy.calledTwice).to.be.true;
-		expect(startBackupStreamPlayerInterval.calledTwice).to.be.true;
+
+		expect(isBackupStreamEnabledSpy.calledThrice).to.be.true;
+		expect(isBackupStreamEnabledSpy.alwaysReturned(false))
+		expect(tryNextTech.calledThrice).to.be.true;
+
 	  })
 
-	  it("handleWebRTCErrorMessages", async function() {
+	  it("handleWebRTCErrorMessages", async function() { 
 		var videoContainer = document.createElement("video_container");
 		var placeHolder = document.createElement("place_holder");
 	
@@ -1409,7 +1304,7 @@ describe("WebPlayer", function() {
 		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake.returns(Promise.resolve("")));
 		var playIfExists = sinon.replace(player, "playIfExists", sinon.fake());
 		var isBackupStreamEnabledSpy = sinon.spy(player, "isBackupStreamEnabled"); 
-		var startBackupStreamPlayerInterval = sinon.replace(player, "startBackupStreamPlayerInterval", sinon.fake());
+		var tryBackupStream = sinon.replace(player, "tryBackupStream", sinon.fake());
 
 		var errors = {
 			error: "no_stream_exist",
@@ -1417,22 +1312,21 @@ describe("WebPlayer", function() {
 	
 		player.backupStreamId = "backupStreamId";
 		player.playOrder = ["webrtc"];
-		player.backupStreamTryCount = 1;
-		player.maxBackupStreamTryCount = 5;
+		player.triedBackupStream = false;
 
 
 		player.handleWebRTCErrorMessages(errors);
 
 		expect(isBackupStreamEnabledSpy.calledOnce).to.be.true;
 		expect(isBackupStreamEnabledSpy.returned(true)).to.be.true;
-		expect(startBackupStreamPlayerInterval.calledOnce).to.be.true;
+		expect(tryBackupStream.calledOnce).to.be.true;
+
+		player.triedBackupStream = true;
 
 		var errors = {
 			error: "no_stream_exist",
 		};
 
-		player.backupStreamTryCount = 5;
-		player.maxBackupStreamTryCount = 5;
 
 		player.handleWebRTCErrorMessages(errors);
 
@@ -1448,10 +1342,92 @@ describe("WebPlayer", function() {
 
 	});
 
+	it("Alternate between main stream and backup stream.", async function() {
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+	
+		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:" };
+		var windowComponent = {
+			location: locationComponent,
+			document: document,
+			addEventListener: window.addEventListener
+		};
+	
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);	
+		
+		player.backupStreamId = "backupStreamId";
+		player.streamId = "mainStreamId";
+		player.playOrder = ["webrtc"];
+		player.currentPlayType = "webrtc";
+		player.triedBackupStream = false;
+	
+		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake.returns(Promise.resolve("")));
+		var playIfExists = sinon.spy(player, "playIfExists");
+		var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
+
+		var isBackupStreamEnabledSpy = sinon.spy(player, "isBackupStreamEnabled"); 
+		var tryBackupStream = sinon.spy(player, "tryBackupStream");
+	
+		// Initial playback attempt, will try main stream id.
+		await player.playIfExists("webrtc");
+		
+		expect(player.triedBackupStream).to.be.false;
+
+		// First failure - handleWebRTCInfoMessages with failed should try backup stream
+		player.handleWebRTCInfoMessages({
+			info: "ice_connection_state_changed", 
+			obj: { state: "failed" }
+		});
+	
+
+		//Error info message triggers trying backup stream.
+		sinon.assert.calledOnce(isBackupStreamEnabledSpy);
+		expect(isBackupStreamEnabledSpy.returned(true))
+		sinon.assert.calledOnce(tryBackupStream);
+		
+		// Verify backup stream is now tried
+		sinon.assert.calledWith(playIfExists, "webrtc", true);
+		
+		// Verify triedBackupStream is now true
+		expect(player.triedBackupStream).to.be.true;
+	
+		// Reset spies
+		isBackupStreamEnabledSpy.resetHistory();
+		tryBackupStream.resetHistory();
+		playIfExists.resetHistory();
+	
+		// backup stream failure occurs. Should go back to main stream.
+		player.handleWebRTCInfoMessages({
+			info: "ice_connection_state_changed", 
+			obj: { state: "failed" }
+		});
+	
+		// Verify attempt to go back to main stream.
+		sinon.assert.calledOnce(tryNextTech);
+	
+		// Simulate another attempt. try next tech calls like this. 
+		await player.playIfExists("webrtc");
+	
+		// Reset spies again
+		isBackupStreamEnabledSpy.resetHistory();
+		tryBackupStream.resetHistory();
+		playIfExists.resetHistory();
+		tryNextTech.resetHistory();
+	
+		// Try next techs call fails. Third failure - should try backup stream again
+		player.handleWebRTCInfoMessages({
+			info: "ice_connection_state_changed", 
+			obj: { state: "failed" }
+		});
+	
+		// Verify backup stream is tried again
+		sinon.assert.calledOnce(isBackupStreamEnabledSpy);
+		sinon.assert.calledOnce(tryBackupStream);
+		sinon.assert.calledWith(playIfExists, "webrtc", true);
+	
+		// Verify triedBackupStream goes back to false after failed backup stream
+		expect(player.triedBackupStream).to.be.true;
+	
+	});
+
 });
-
-
-
-
-   
-    
