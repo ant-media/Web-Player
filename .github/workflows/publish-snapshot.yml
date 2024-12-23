@@ -23,7 +23,7 @@ jobs:
       - run: npm run compile
       - run: npm test
       #Fix this versioning for the snapshots
-      - run: npm version 2.12.0-SNAPSHOT"-`date +"%Y-%b-%d-%I-%M"`"  --no-git-tag-version
+      - run: npm version 3.0.0-SNAPSHOT"-`date +"%Y-%b-%d-%I-%M"`"  --no-git-tag-version
       - run: npm publish --tag SNAPSHOT
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

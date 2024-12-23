@@ -79,10 +79,10 @@ describe("WebPlayer", function() {
 
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 
-		expect(player.websocketURL).to.be.equal('wss://example.com/stream123.webrtc');
+		expect(player.websocketBaseURL).to.be.equal('wss://example.com/');
 	});
     
-    it("Check url parameters", async function() {
+    it("check-url-parameters", async function() {
 		
 		  var videoContainer = document.createElement("video_container");
 		  
@@ -119,7 +119,9 @@ describe("WebPlayer", function() {
 	      expect(player.iceConnected).to.false;
 	      expect(player.errorCalled).to.false;
 
-		  expect(player.websocketURL).to.be.equal('ws://example.com/stream123.webrtc');
+		  expect(player.websocketBaseURL).to.be.equal('ws://example.com/');
+		  var fullWebSocketBaseUrl = player.getWebsocketURLForStream(player.streamId);
+		  expect(fullWebSocketBaseUrl).to.be.equal('ws://example.com/stream123.webrtc');
 		  expect(player.httpBaseURL).to.be.equal('http://example.com/');
 	      expect(player.getSecurityQueryParams()).to.be.equal("&token="+token+"&subscriberId="+subscriberId+"&subscriberCode="+subscriberCode);      
     
@@ -135,14 +137,14 @@ describe("WebPlayer", function() {
 
 			player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 
-			expect(player.websocketURL).to.be.equal('ws://example.com/stream123.webrtc');
+			expect(player.websocketBaseURL).to.be.equal('ws://example.com/');
 			expect(player.httpBaseURL).to.be.equal('http://example.com/');
 
 
 		  }
     });
     
-    it("CheckConfigParameters", async function(){
+    it("check-config-parameters", async function(){
 	        
         var videoContainer = document.createElement("video_container");
 		  
@@ -209,7 +211,9 @@ describe("WebPlayer", function() {
 		
 		expect(player.httpBaseURL).to.be.equal('http://example.antmedia.io:5080/WebRTCAppEE/');
 		
-		expect(player.websocketURL).to.be.equal('ws://example.antmedia.io:5080/WebRTCAppEE/streamConfig123.webrtc');
+		expect(player.websocketBaseURL).to.be.equal('ws://example.antmedia.io:5080/WebRTCAppEE/');
+		var fullWebSocketUrl = player.getWebsocketURLForStream(player.streamId);
+		expect(fullWebSocketUrl).to.be.equal('ws://example.antmedia.io:5080/WebRTCAppEE/streamConfig123.webrtc');
 		
 	});
 	
@@ -596,8 +600,9 @@ describe("WebPlayer", function() {
 		var videoContainer = document.createElement("video_container");
 		  
 		var placeHolder = document.createElement("place_holder");
-		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123",  pathname: "/", 
+		  	
+		var streamId = "stream123";
+		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id="+streamId,  pathname: "/", 
 									hostname:"example.com", port:5080,
 									protocol:"http:" };
 		var windowComponent = {  location : locationComponent,
@@ -608,7 +613,7 @@ describe("WebPlayer", function() {
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 		var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
 		
-		await player.playIfExists("webrtc");	
+		await player.playIfExists("webrtc", streamId);	
 		expect(playWithVideoJS.callCount).to.be.equal(1);
 		expect(playWithVideoJS.calledWithExactly("ws://example.com:5080/stream123.webrtc", "webrtc")).to.be.true;
 		
@@ -640,7 +645,7 @@ describe("WebPlayer", function() {
 		expect(setPlayerVisible.called).to.be.true;
 		expect(setPlayerVisible.calledWithMatch(false)).to.be.true;
 		
-		await player.playIfExists("webrtc");	
+		await player.playIfExists("webrtc", player.streamId);	
 		expect(playWithVideoJS.callCount).to.be.equal(2);
 		expect(playWithVideoJS.calledWithMatch("ws://example.com:5080/stream123.webrtc", "webrtc")).to.be.true;
 		
@@ -648,7 +653,7 @@ describe("WebPlayer", function() {
 		
 		var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
 		sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.returns(Promise.resolve("streams/stream123.mp4")));
-		await player.playIfExists("vod");
+		await player.playIfExists("vod", player.streamId);
 		
 		expect(playWithVideoJS.callCount).to.be.equal(1);
 		expect(playWithVideoJS.calledWithMatch("streams/stream123.mp4", "mp4")).to.be.true;
@@ -658,7 +663,7 @@ describe("WebPlayer", function() {
 		var playViaDash = sinon.replace(player, "playViaDash", sinon.fake());
 		sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.returns(Promise.resolve("streams/stream123/stream123.mpd")));
 		
-		await player.playIfExists("dash");
+		await player.playIfExists("dash", player.streamId);
 		expect(playViaDash.callCount).to.be.equal(1);
 		expect(playViaDash.calledWithMatch("streams/stream123/stream123.mpd")).to.be.true;
 		
@@ -669,14 +674,14 @@ describe("WebPlayer", function() {
 		sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.returns(Promise.reject("")));
 		var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
 		
-		await player.playIfExists("hls");
+		await player.playIfExists("hls", player.streamId);
 		expect(tryNextTech.callCount).to.be.equal(1);
 		
 		
-		await player.playIfExists("dash");
+		await player.playIfExists("dash", player.streamId);
 		expect(tryNextTech.callCount).to.be.equal(2);
 		
-		await player.playIfExists("vod");
+		await player.playIfExists("vod", player.streamId);
 		//because it will not tryNextTech if promises fails
 		expect(tryNextTech.callCount).to.be.equal(2);
 		
@@ -701,7 +706,7 @@ describe("WebPlayer", function() {
 	    var checkStreamExistsViaHttp = sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.returns(Promise.resolve("streams/stream123.mp4")));
 	    var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
 	    
-	    await player.playIfExists("vod");
+	    await player.playIfExists("vod", player.streamId);
 	    
 	    expect(checkStreamExistsViaHttp.calledWithMatch(WebPlayer.STREAMS_FOLDER, "stream123.mp4", "")).to.be.true;
 	    expect(playWithVideoJS.calledWithMatch("streams/stream123.mp4", "mp4")).to.be.true;
@@ -718,7 +723,7 @@ describe("WebPlayer", function() {
 	    checkStreamExistsViaHttp = sinon.replace(player2, "checkStreamExistsViaHttp", sinon.fake.returns(Promise.resolve("")));
 	    expect(player2.playType[0]).to.be.equal("mp4");
 	    
-	    player2.playIfExists("vod");
+	    player2.playIfExists("vod", player2.streamId);
 	    
 	    expect(checkStreamExistsViaHttp.calledWithMatch(WebPlayer.STREAMS_FOLDER, "stream123", "mp4")).to.be.true;
 	    		
@@ -1026,7 +1031,7 @@ describe("WebPlayer", function() {
 		var checkStreamExistsViaHttp = sinon.replace(player, "checkStreamExistsViaHttp", sinon.fake.resolves(streamPath));
 		var playWithVideoJS = sinon.replace(player, "playWithVideoJS", sinon.fake());
 
-		await player.playIfExists("ll-hls");
+		await player.playIfExists("ll-hls", streamId);
 
 		expect(checkStreamExistsViaHttp.calledWithMatch(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, streamId, WebPlayer.HLS_EXTENSION)).to.be.true;
 		expect(playWithVideoJS.calledWithMatch(streamPath, WebPlayer.HLS_EXTENSION)).to.be.true;

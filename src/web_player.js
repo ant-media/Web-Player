@@ -221,6 +221,18 @@ export class WebPlayer {
      */
     isIPCamera;
 
+    /**
+     * Stream id of backup stream.
+     */
+    backupStreamId;
+
+
+    /**
+     * activeStreamId: is the stream id that is being played currently
+     * It can be streamID or backupStreamId
+     */
+    activeStreamId;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -282,6 +294,8 @@ export class WebPlayer {
             alert(message);
             throw new Error(message);
         }
+        //set the active stream id as stream id
+        this.activeStreamId = this.streamId;
         
         if (!this.httpBaseURL) 
         {
@@ -305,22 +319,21 @@ export class WebPlayer {
             path += appName 
 
             this.httpBaseURL = this.window.location.protocol + "//" + path;
-		    this.websocketURL = "ws://" + path + this.streamId + ".webrtc";
+		    this.websocketBaseURL = "ws://" + path;
 		
 		    if (this.window.location.protocol.startsWith("https")) {
-                this.websocketURL = this.websocketURL.replace("ws", "wss");
+                this.websocketBaseURL = this.websocketBaseURL.replace("ws", "wss");
 		    }
 	
         }
-        else if (!this.websocketURL) 
+        else if (!this.websocketBaseURL) 
         {
             //this is the case where web player gets inputs from config object
             if (!this.httpBaseURL.endsWith("/")) {
                 this.httpBaseURL += "/";
             }
 
-			this.websocketURL = this.httpBaseURL.replace("http", "ws");
-			this.websocketURL += this.streamId + ".webrtc"; 
+			this.websocketBaseURL = this.httpBaseURL.replace("http", "ws");
 		}
 
         this.dom = this.window.document;
@@ -393,7 +406,7 @@ export class WebPlayer {
         this.aScene = null;
         this.playerListener = null;
         this.webRTCDataListener = null;
-        this.websocketURL = null;
+        this.websocketBaseURL = null;
         this.httpBaseURL = null;
         this.videoHTMLContent = STATIC_VIDEO_HTML;
         this.videoPlayerId = "video-player";
@@ -410,6 +423,7 @@ export class WebPlayer {
         this.restAPIPromise = null;
         this.isIPCamera = false;
         this.playerEvents = WebPlayer.PLAYER_EVENTS
+        this.backupStreamId = null;
     }
     
     initializeFromUrlParams() {
@@ -467,6 +481,8 @@ export class WebPlayer {
         this.ptzValueStep = getUrlParameter("ptzValueStep", this.window.location.search) || this.ptzValueStep;
 
         this.ptzMovement = getUrlParameter("ptzMovement", this.window.location.search) || this.ptzMovement;
+
+        this.backupStreamId = getUrlParameter("backupStreamId", this.window.location.search) || this.backupStreamId;
 
 	}
 
@@ -683,7 +699,7 @@ export class WebPlayer {
 	                * If getting codec incompatible or remote description error, it will redirect HLS player.
 	                */
 	                Logger.warn("notSetRemoteDescription error. Redirecting to HLS player.");
-	                this.playIfExists("hls");
+	                this.playIfExists("hls", this.activeStreamId);
 	            }
                 if (this.playerListener != null) {
                     this.playerListener("webrtc-error", errors);
@@ -819,7 +835,7 @@ export class WebPlayer {
                                 //if iceConnected is true, it means that stream is really ended for webrtc
                 
                                 //initialize to play again if the publishing starts again
-                                this.playIfExists(this.playOrder[0]);
+                                this.playIfExists(this.playOrder[0], this.activeStreamId);
                             }
                             else if (this.currentPlayType == "hls") {
                                 //if it's hls, it means that stream is ended
@@ -829,12 +845,12 @@ export class WebPlayer {
                                 {
                                     //do not play again if it's hls because it play last seconds again, let the server clear it
                                     setTimeout(() => {
-                                        this.playIfExists(this.playOrder[0]);
+                                        this.playIfExists(this.playOrder[0], this.activeStreamId);
                                     }, 10000);
                                 }
                                 else
                                 {
-                                    this.playIfExists(this.playOrder[0]);
+                                    this.playIfExists(this.playOrder[0], this.activeStreamId);
                                 }
                                 //TODO: what if the stream is hls vod then it always re-play
                             }
@@ -995,17 +1011,29 @@ export class WebPlayer {
 	        this.destroyDashPlayer();
 	        this.destroyVideoJSPlayer();
 	        this.setPlayerVisible(false);
-	        var index = this.playOrder.indexOf(this.currentPlayType);
-	        if (index == -1 || index == (this.playOrder.length - 1)) {
-	            index = 0;
-	        }
-	        else {
-	            index++;
-	        }
+
+            //before changing play type, let's check if there is any backup stream
+            if (this.activeStreamId == this.streamId && this.backupStreamId != null) 
+            {
+                this.activeStreamId = this.backupStreamId;
+            }
+            else 
+            {
+                this.activeStreamId = this.streamId;
+                var index = this.playOrder.indexOf(this.currentPlayType);
+                if (index == -1 || index == (this.playOrder.length - 1)) {
+                    index = 0;
+                }
+                else {
+                    index++;
+                }
+            }
+
+
 
 	        this.tryNextTechTimer = setTimeout(() => {
 				 this.tryNextTechTimer = -1;
-	            this.playIfExists(this.playOrder[index]);
+	            this.playIfExists(this.playOrder[index], this.activeStreamId);
 	        }, 3000);
         }
         else
@@ -1089,11 +1117,11 @@ export class WebPlayer {
             {
                 //do not play again if it's dash because it play last seconds again, let the server clear it
                 setTimeout(() => {
-                    this.playIfExists(this.playOrder[0]);
+                    this.playIfExists(this.playOrder[0], this.activeStreamId);
                 }, 10000);
             }
             else {
-                this.playIfExists(this.playOrder[0]);
+                this.playIfExists(this.playOrder[0], this.activeStreamId);
             }
             if (this.playerListener != null) {
                 this.playerListener("ended");
@@ -1189,7 +1217,7 @@ export class WebPlayer {
      * play the stream with the given tech
      * @param {string} tech
      */
-    async playIfExists(tech) {
+    async playIfExists(tech, streamIdToPlay) {
         this.currentPlayType = tech;
         this.destroyVideoJSPlayer();
         this.destroyDashPlayer();
@@ -1198,83 +1226,88 @@ export class WebPlayer {
         this.containerElement.innerHTML = this.videoHTMLContent;
 
 
-        Logger.warn("Try to play the stream " + this.streamId + " with " + this.currentPlayType);
+        Logger.warn("Try to play the stream " + streamIdToPlay + " with " + this.currentPlayType);
         switch (this.currentPlayType) {
             case "hls":
                 //TODO: Test case for hls
                 //1. Play stream with adaptive m3u8 for live and VoD
                 //2. Play stream with m3u8 for live and VoD
                 //3. if files are not available check nextTech is being called
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId, WebPlayer.HLS_EXTENSION).then((streamPath) => {
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamIdToPlay, WebPlayer.HLS_EXTENSION).then((streamPath) => {
 
                     this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
 
-                    Logger.warn("HLS stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
+                    Logger.warn("HLS stream resource not available for stream:" + streamIdToPlay + " error is " + error + ". Try next play tech");
                     this.tryNextTech();
                 });
             case "ll-hls":
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, this.streamId, WebPlayer.HLS_EXTENSION).then((streamPath) => {
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, streamIdToPlay, WebPlayer.HLS_EXTENSION).then((streamPath) => {
 
                     this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
 
-                    Logger.warn("LL-HLS stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
+                    Logger.warn("LL-HLS stream resource not available for stream:" + streamIdToPlay + " error is " + error + ". Try next play tech");
                     this.tryNextTech();
                 });
             case "dash":
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId + "/" + this.streamId, WebPlayer.DASH_EXTENSION).then((streamPath) => {
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamIdToPlay + "/" + streamIdToPlay, WebPlayer.DASH_EXTENSION).then((streamPath) => {
                     this.playViaDash(streamPath);
                 }).catch((error) => {
-                    Logger.warn("DASH stream resource not available for stream:" + this.streamId + " error is " + error + ". Try next play tech");
+                    Logger.warn("DASH stream resource not available for stream:" + streamIdToPlay + " error is " + error + ". Try next play tech");
                     this.tryNextTech();
                 });
 
             case "webrtc":
               
 
-                return this.playWithVideoJS(this.addSecurityParams(this.websocketURL), WebPlayer.WEBRTC_EXTENSION);
+                return this.playWithVideoJS(this.addSecurityParams(this.getWebsocketURLForStream(streamIdToPlay)), WebPlayer.WEBRTC_EXTENSION);
             case "vod":
                 //TODO: Test case for vod
                 //1. Play stream with mp4 for VoD
                 //2. Play stream with webm for VoD
                 //3. Play stream with playOrder type
 
-                var lastIndexOfDot = this.streamId.lastIndexOf(".");
+                var lastIndexOfDot = streamIdToPlay.lastIndexOf(".");
                 var extension;
                 if (lastIndexOfDot != -1)
                 {
                     //if there is a dot in the streamId, it means that this is extension, use it. make the extension empty
                     this.playType[0] = "";
-                    extension = this.streamId.substring(lastIndexOfDot + 1);
+                    extension = streamIdToPlay.substring(lastIndexOfDot + 1);
                 }
                 else {
 					//we need to give extension to playWithVideoJS
 					extension = this.playType[0];
 				}
 
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId,  this.playType[0]).then((streamPath) => {
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamIdToPlay,  this.playType[0]).then((streamPath) => {
 
                     //we need to give extension to playWithVideoJS
                     this.playWithVideoJS(streamPath, extension);
 
                 }).catch((error) => {
-                    Logger.warn("VOD stream resource not available for stream:" + this.streamId + " and play type " + this.playType[0] + ". Error is " + error);
+                    Logger.warn("VOD stream resource not available for stream:" + streamIdToPlay + " and play type " + this.playType[0] + ". Error is " + error);
                     if (this.playType.length > 1) {
                         Logger.warn("Try next play type which is " + this.playType[1] + ".")
-                        this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, this.streamId, this.playType[1]).then((streamPath) => {
+                        this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamIdToPlay, this.playType[1]).then((streamPath) => {
                             this.playWithVideoJS(streamPath, this.playType[1]);
                         }).catch((error) => {
-                            Logger.warn("VOD stream resource not available for stream:" + this.streamId + " and play type error is " + error);
+                            Logger.warn("VOD stream resource not available for stream:" + streamIdToPlay + " and play type error is " + error);
                         });
                     }
 
                 });
         }
+    }
+
+
+    getWebsocketURLForStream(streamIdToPlay) {
+        return  this.websocketBaseURL + streamIdToPlay + ".webrtc";
     }
 
     /**
@@ -1299,11 +1332,13 @@ export class WebPlayer {
      * play the stream with videojs player or dash player
      */
     play() {
-        if (this.streamId.startsWith(WebPlayer.STREAMS_FOLDER)) {
+        //if there is a request to play, try original stream first
+        this.activeStreamId = this.streamId;
+        if (this.activeStreamId.startsWith(WebPlayer.STREAMS_FOLDER)) {
 
             //start videojs player because it directly try to play stream from streams folder
-            var lastIndexOfDot = this.streamId.lastIndexOf(".");
-            var extension = this.streamId.substring(lastIndexOfDot + 1);
+            var lastIndexOfDot = this.activeStreamId.lastIndexOf(".");
+            var extension = this.activeStreamId.substring(lastIndexOfDot + 1);
 
             this.playOrder= ["vod"];
             this.currentPlayType = this.playOrder[0];
@@ -1315,14 +1350,14 @@ export class WebPlayer {
 
             if (extension == WebPlayer.DASH_EXTENSION)
             {
-				this.playViaDash(this.httpBaseURL + this.addSecurityParams(this.streamId), extension);
+				this.playViaDash(this.httpBaseURL + this.addSecurityParams(this.activeStreamId), extension);
 			}
 			else  {
-				this.playWithVideoJS(this.httpBaseURL + this.addSecurityParams(this.streamId), extension);
+				this.playWithVideoJS(this.httpBaseURL + this.addSecurityParams(this.activeStreamId), extension);
 			}
         }
         else {
-            this.playIfExists(this.playOrder[0]);
+            this.playIfExists(this.playOrder[0], this.activeStreamId);
         }
     }
 
