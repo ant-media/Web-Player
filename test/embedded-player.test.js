@@ -22,7 +22,7 @@ describe("WebPlayer", function() {
 	  sandbox.restore();
 	});
 	
-	 it("Check default parameters", async function() {
+	 it("check-default-parameters", async function() {
 		
 		
 		  var videoContainer = document.createElement("video_container");
@@ -425,7 +425,7 @@ describe("WebPlayer", function() {
 		  
 		var placeHolder = document.createElement("place_holder");
 		  			
-		var locationComponent =  { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
+		var locationComponent =  { href : 'http://example.com?id=stream123&backupStreamId=backup123', search: "?id=stream123&backupStreamId=backup123", pathname:"/" , protocol:"http:"};
 		var windowComponent = { location : locationComponent,
 		  						  document:  document};
 		 	      
@@ -439,30 +439,63 @@ describe("WebPlayer", function() {
 	    player.playOrder = ["webrtc","hls"];
 	    player.currentPlayType = "webrtc";
 	    
+		expect(player.streamId).to.be.equal("stream123");
+		expect(player.backupStreamId).to.be.equal("backup123");
+
 	    player.tryNextTech();
-	    
-	    
 	    
 	    expect(destroyDashPlayer.calledOnce).to.be.true;
 	    expect(destroyVideoJSPlayer.calledOnce).to.be.true;
 	    expect(setPlayerVisible.calledOnce).to.be.true;
-	     expect(setPlayerVisible.calledWithMatch(false)).to.be.true;
+	    expect(setPlayerVisible.calledWithMatch(false)).to.be.true;
 	    
 	    clock.tick(2500);
 	    
 	    expect(playIfExists.calledOnce).to.be.false;
 	    
-	    clock.tick(3500);
-	    
+	    clock.tick(1500);
+	    //4 seconds passed
+
+		
 	    expect(playIfExists.calledOnce).to.be.true;
-	    expect(playIfExists.calledWithMatch("hls")).to.be.true;
+		//it should call with webrtc, backup stream
+	    expect(playIfExists.calledWithMatch("webrtc", "backup123")).to.be.true;
+
+		player.currentPlayType = "webrtc";
+
+		player.tryNextTech();
+		
+		clock.tick(3500);
+
+		expect(playIfExists.callCount).to.be.equal(2);
+		//it should call with other tech hls and original stream
+		expect(playIfExists.calledWithMatch("hls", "stream123")).to.be.true;
 	    
+
+		player.currentPlayType = "hls";
+
+		player.tryNextTech();
+		
+		clock.tick(3500);
+		expect(playIfExists.callCount).to.be.equal(3);
+		//it should call with hls and backup stream
+		expect(playIfExists.calledWithMatch("hls", "backup123")).to.be.true;
+
+
 	    player.currentPlayType = "hls";
 	    
 	    player.tryNextTech();
 	    clock.tick(3500);
-	    expect(playIfExists.callCount).to.be.equal(2);
-	    expect(playIfExists.calledWithMatch("webrtc")).to.be.true;
+	    expect(playIfExists.callCount).to.be.equal(4);
+		//it should call with webrtc and original stream again
+	    expect(playIfExists.calledWithMatch("webrtc", "stream123")).to.be.true;
+
+		player.currentPlayType = "hls";
+		player.tryNextTech();
+	    clock.tick(3500);
+		expect(playIfExists.callCount).to.be.equal(5);
+		//it should call with webrtc and  backup stream
+	    expect(playIfExists.calledWithMatch("webrtc", "backup123")).to.be.true;
 
 	});
 	

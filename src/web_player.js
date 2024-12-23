@@ -226,7 +226,6 @@ export class WebPlayer {
      */
     backupStreamId;
 
-
     /**
      * activeStreamId: is the stream id that is being played currently
      * It can be streamID or backupStreamId
@@ -1013,27 +1012,28 @@ export class WebPlayer {
 	        this.setPlayerVisible(false);
 
             //before changing play type, let's check if there is any backup stream
+            var playTypeIndex = this.playOrder.indexOf(this.currentPlayType);
             if (this.activeStreamId == this.streamId && this.backupStreamId != null) 
             {
+                //update active stream id to backup stream id
                 this.activeStreamId = this.backupStreamId;
+                //don't update playTypeIndex because we're trying backup stream with the same play type
             }
             else 
             {
+                //reset the activeStreamId back to streamId
                 this.activeStreamId = this.streamId;
-                var index = this.playOrder.indexOf(this.currentPlayType);
-                if (index == -1 || index == (this.playOrder.length - 1)) {
-                    index = 0;
+                //update the playTypeIndex to try next tech
+                if (playTypeIndex == -1 || playTypeIndex == (this.playOrder.length - 1)) {
+                    playTypeIndex = 0;
                 }
                 else {
-                    index++;
+                    playTypeIndex++;
                 }
             }
-
-
-
 	        this.tryNextTechTimer = setTimeout(() => {
 				 this.tryNextTechTimer = -1;
-	            this.playIfExists(this.playOrder[index], this.activeStreamId);
+	            this.playIfExists(this.playOrder[playTypeIndex], this.activeStreamId);
 	        }, 3000);
         }
         else
