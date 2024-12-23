@@ -1452,11 +1452,11 @@ export class WebPlayer {
                 <span id="zoom-in-button" style="color: #bc1b22; font-size: 50px; font-weight: bold; cursor: pointer; margin-left: 5px; user-select: none;">+</span>
              </div>
               <div id="direction-arrow-container" class="direction-arrow-container">
-                <img id="up-button" style="position: absolute; width: 50px; cursor: pointer; height: 50px; left: 50%; transform: translateX(-50%);" src="`+ UpArrow +`"/>
+                <img id="up-button" style="position: absolute; width: 50px; cursor: pointer; height: 50px; left: 50%; transform: translateX(-50%);" src="`+ UpArrow.src +`"/>
              
-                <img id="left-button" style="position: absolute; left: 0px; width: 50px; height: 50px; cursor: pointer; top: 50%; transform: translateY(-50%) rotate(-90deg);" src="`+UpArrow+`"/>
-                <img id="right-button" style="position: absolute; right:0px; top: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateY(-50%) rotate(90deg);" src="`+UpArrow+`"/>
-                <img id="down-button" style="position: absolute; bottom:0px;left: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateX(-50%) rotate(180deg);" src="`+UpArrow+`"/>
+                <img id="left-button" style="position: absolute; left: 0px; width: 50px; height: 50px; cursor: pointer; top: 50%; transform: translateY(-50%) rotate(-90deg);" src="`+UpArrow.src+`"/>
+                <img id="right-button" style="position: absolute; right:0px; top: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateY(-50%) rotate(90deg);" src="`+UpArrow.src+`"/>
+                <img id="down-button" style="position: absolute; bottom:0px;left: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateX(-50%) rotate(180deg);" src="`+UpArrow.src+`"/>
                
             </div>
            
