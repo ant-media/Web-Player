@@ -1,6 +1,6 @@
 {
   "name": "@antmedia/web_player",
-  "version": "2.11.10",
+  "version": "2.11.11",
   "description": "Ant Media Server Player that can play WebRTC, HLS, DASH",
   "main": "dist/index.js",
   "module": "dist/es/index.js",
@@ -29,7 +29,7 @@
   },
   "license": "ISC",
   "dependencies": {
-    "@antmedia/videojs-webrtc-plugin": "^1.3.1",
+    "@antmedia/videojs-webrtc-plugin": "^1.3.2",
     "@antmedia/webrtc_adaptor": "^2.11.3",
     "@rollup/plugin-json": "6.1.0",
     "aframe": "1.5.0",
