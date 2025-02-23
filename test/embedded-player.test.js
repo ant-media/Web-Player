@@ -827,7 +827,17 @@ describe("WebPlayer", function() {
 		
 		expect(pauseMethod.calledOnce).to.be.true;
 		expect(playMethod.calledOnce).to.be.true;
-		
+
+
+		var playIfExistsMethod = sinon.replace(player, "playIfExists", sinon.fake());
+
+		infos = {
+			info: "streaming_started",
+
+		}
+		player.handleWebRTCInfoMessages(infos);
+
+		expect(playIfExistsMethod.calledOnce).to.be.true;	
 
 	});
 
