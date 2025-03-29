@@ -715,29 +715,28 @@ export class WebPlayer {
 
 		//hls specific calls
 		if (extension == "m3u8") {
-	        videojs.Vhs.xhr.onRequest = (options) => {
-                const queryParams = [];
+      this.videojsPlayer.on('xhr-hooks-ready', () => {
+          const playerRequestHook = (options) => {
+          var queryParams = [];
+          if (!options.uri.includes("subscriberId") && this.subscriberId != null) {
+            queryParams.push("subscriberId=".concat(this.subscriberId));
+          }
+          if (!options.uri.includes("subscriberCode") && this.subscriberCode != null) {
+            queryParams.push("subscriberCode=".concat(this.subscriberCode));
+          }
+          if (!options.uri.includes("token") && this.token != null) {
+            queryParams.push("token=".concat(this.token));
+          }
+          if (queryParams.length > 0) {
+            var queryString = queryParams.join("&");
+            options.uri += options.uri.includes("?") ? "&".concat(queryString) : "?".concat(queryString);
+          }
+            Logger_1.debug("hls request: " + options.uri);
 
-                if (!options.uri.includes("subscriberId") && this.subscriberId != null) {
-                    queryParams.push(`subscriberId=${this.subscriberId}`);
-                }
+          };
 
-                if (!options.uri.includes("subscriberCode") && this.subscriberCode != null) {
-                    queryParams.push(`subscriberCode=${this.subscriberCode}`);
-                }
-
-                if (!options.uri.includes("token") && this.token != null) {
-                    queryParams.push(`token=${this.token}`);
-                }
-
-                if (queryParams.length > 0) {
-                    const queryString = queryParams.join("&");
-                    options.uri += options.uri.includes("?") ? `&${queryString}` : `?${queryString}`;
-                }
-                Logger.debug("hls request: " + options.uri);
-
-	        };
-
+        this.videojsPlayer.tech().vhs.xhr.onRequest(playerRequestHook);
+        });     
 
 	        this.videojsPlayer.ready(() => {
 
