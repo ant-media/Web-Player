@@ -81,6 +81,34 @@ describe("WebPlayer", function() {
 
 		expect(player.websocketBaseURL).to.be.equal('wss://example.com/');
 	});
+
+	it("insertSecurityParameters", async function() {	
+		var videoContainer = document.createElement("video_container");
+		  
+		  var placeHolder = document.createElement("place_holder");
+		  			
+		  var token = "this_is_the_token";
+		  var subscriberId = "this_is_subscriber_id";
+		  var subscriberCode = "this_is_subscriber_id_subscriberCode"
+		  var locationComponent =  { href : 'http://example.com?id=stream123', 
+		  							 pathname:"/", 
+		  							 search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
+		  								"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false"
+									, hostname:"example.com", port:"", protocol:"http:"	
+		  								
+		  							 };
+		  var windowComponent = { location : locationComponent,
+		  						  document:  document};
+		 	      
+	      var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+		  var options = {
+			method: 'GET',
+			uri: 'http://example.com/stream123',
+		  };
+		  player.insertSecurityParameters(options)
+		  expect(options.uri).to.be.equal('http://example.com/stream123?subscriberId='+subscriberId+'&subscriberCode='+subscriberCode+'&token='+token);
+	});
     
     it("check-url-parameters", async function() {
 		
@@ -123,9 +151,11 @@ describe("WebPlayer", function() {
 		  var fullWebSocketBaseUrl = player.getWebsocketURLForStream(player.streamId);
 		  expect(fullWebSocketBaseUrl).to.be.equal('ws://example.com/stream123.webrtc');
 		  expect(player.httpBaseURL).to.be.equal('http://example.com/');
-	      expect(player.getSecurityQueryParams()).to.be.equal("&token="+token+"&subscriberId="+subscriberId+"&subscriberCode="+subscriberCode);      
-    
 
+		  console.log("player.getSecurityQueryParams(): " + player.getSecurityQueryParams());
+
+	      expect(player.getSecurityQueryParams()).to.be.equal("token="+token+"&subscriberId="+subscriberId+"&subscriberCode="+subscriberCode);      
+    
 		  {
 			locationComponent =  {  href : 'http://example.com?id=stream123', 
 				search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
@@ -297,7 +327,7 @@ describe("WebPlayer", function() {
 	 
 	 
 	 
-	 it("Check http resource is available", async function() {
+	 it("check-http-resource-is-available", async function() {
 		
 		var videoContainer = document.createElement("video_container");
 		  
@@ -346,7 +376,7 @@ describe("WebPlayer", function() {
 		player.token = token;
 		await  player.checkStreamExistsViaHttp(testFolder, streamId, extension).then((streamPath) => {
 			console.log("stream path: " + streamPath);
-			expect(streamPath).to.be.equal("http://example.antmedia.io:5080" + "/" + testFolder + "/" + streamId + "_adaptive" + "." + extension + "?&token=" + token);
+			expect(streamPath).to.be.equal("http://example.antmedia.io:5080" + "/" + testFolder + "/" + streamId + "_adaptive" + "." + extension + "?token=" + token);
 		}).catch((err) => {
 			expect.fail("it should not throw exception");
 		});
@@ -1005,8 +1035,6 @@ describe("WebPlayer", function() {
 	    this.timeout(10000);
 		var videoContainer = document.createElement("video_container");
 		  
-	
- 
 		var player = new WebPlayer({
 			streamId:"streamConfig",
 		}, videoContainer, null);
