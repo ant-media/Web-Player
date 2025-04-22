@@ -604,7 +604,8 @@ export class WebPlayer {
         }
 	}
 
-    insertSecurityParameters(options) {
+    // we define insertSecurityParameters in this way because we want to get the this context such as this.subscriberId
+    insertSecurityParameters = (options) => {
         var queryParams = [];
         if (!options.uri.includes("subscriberId") && this.subscriberId != null) {
           queryParams.push("subscriberId=".concat(this.subscriberId));
