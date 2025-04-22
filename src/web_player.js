@@ -604,6 +604,24 @@ export class WebPlayer {
         }
 	}
 
+    insertSecurityParameters(options) {
+        var queryParams = [];
+        if (!options.uri.includes("subscriberId") && this.subscriberId != null) {
+          queryParams.push("subscriberId=".concat(this.subscriberId));
+        }
+        if (!options.uri.includes("subscriberCode") && this.subscriberCode != null) {
+          queryParams.push("subscriberCode=".concat(this.subscriberCode));
+        }
+        if (!options.uri.includes("token") && this.token != null) {
+          queryParams.push("token=".concat(this.token));
+        }
+        if (queryParams.length > 0) {
+          var queryString = queryParams.join("&");
+          options.uri += options.uri.includes("?") ? "&".concat(queryString) : "?".concat(queryString);
+        }
+          Logger.debug("hls request: " + options.uri);
+    }
+
     /**
      * Play the stream via videojs
      * @param {*} streamUrl
@@ -714,32 +732,17 @@ export class WebPlayer {
         }
 
 		//hls specific calls
-		if (extension == "m3u8") {
-      this.videojsPlayer.on('xhr-hooks-ready', () => {
-          const playerRequestHook = (options) => {
-          var queryParams = [];
-          if (!options.uri.includes("subscriberId") && this.subscriberId != null) {
-            queryParams.push("subscriberId=".concat(this.subscriberId));
-          }
-          if (!options.uri.includes("subscriberCode") && this.subscriberCode != null) {
-            queryParams.push("subscriberCode=".concat(this.subscriberCode));
-          }
-          if (!options.uri.includes("token") && this.token != null) {
-            queryParams.push("token=".concat(this.token));
-          }
-          if (queryParams.length > 0) {
-            var queryString = queryParams.join("&");
-            options.uri += options.uri.includes("?") ? "&".concat(queryString) : "?".concat(queryString);
-          }
-            Logger_1.debug("hls request: " + options.uri);
-
-          };
-
-        this.videojsPlayer.tech().vhs.xhr.onRequest(playerRequestHook);
-        });     
+		if (extension == "m3u8") 
+        {    
+            this.videojsPlayer.on('xhr-hooks-ready', () => {
+                    this.videojsPlayer.ready(() => {
+                        // tech is ready after ready event
+                        this.videojsPlayer.tech().vhs.xhr.onRequest(this.insertSecurityParameters);
+                    });
+            });     
 
 	        this.videojsPlayer.ready(() => {
-
+                
 	            // If it's already added to player, no need to add again
 	            if (typeof this.videojsPlayer.qualitySelectorHls === "function") {
 	                this.videojsPlayer.qualitySelectorHls({
@@ -1316,16 +1319,22 @@ export class WebPlayer {
     getSecurityQueryParams() {
         var queryString = "";
         if (this.token != null) {
-            queryString += "&token=" + this.token;
+            queryString += "token=" + this.token + "&";
         }
         if (this.subscriberId != null) {
-            queryString += "&subscriberId=" + this.subscriberId;
+            queryString += "subscriberId=" + this.subscriberId + "&";
         }
         if (this.subscriberCode != null) {
-            queryString += "&subscriberCode=" + this.subscriberCode;
+            queryString += "subscriberCode=" + this.subscriberCode + "&";
+        }
+        //remove the last character if it's "&"
+        if (queryString.endsWith("&")) {
+            queryString = queryString.substring(0, queryString.length - 1);
         }
         return queryString;
     }
+
+   
 
     /**
      * play the stream with videojs player or dash player
