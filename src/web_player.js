@@ -602,6 +602,11 @@ export class WebPlayer {
                 this.videojsPlayer.play();
             }, 2000);
         }
+        else if (infos["info"] == "streaming_started") 
+        {
+            Logger.info("Requested stream has started");
+            this.playIfExists(this.currentPlayType, this.activeStreamId);
+        }
 	}
 
     // we define insertSecurityParameters in this way because we want to get the this context such as this.subscriberId
