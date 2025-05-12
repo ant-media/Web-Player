@@ -602,6 +602,11 @@ export class WebPlayer {
                 this.videojsPlayer.play();
             }, 2000);
         }
+        else if (infos["info"] == "streaming_started") 
+        {
+            Logger.info("Requested stream has started");
+            this.playIfExists(this.currentPlayType, this.activeStreamId);
+        }
 	}
 
     // we define insertSecurityParameters in this way because we want to get the this context such as this.subscriberId
@@ -700,8 +705,15 @@ export class WebPlayer {
 	        this.videojsPlayer.on('webrtc-error', (event, errors) => {
 	            //some of the possible errors, NotFoundError, SecurityError,PermissionDeniedError
 	            Logger.warn("error callback: " + JSON.stringify(errors));
-
-	            if (errors["error"] == "no_stream_exist" || errors["error"] == "WebSocketNotConnected"
+                if (errors["error"] == "no_stream_exist" 
+                        && errors["message"] // check if message exists
+                        && errors["message"]["information"] == "stream_not_exist_or_not_streaming") 
+                {
+                    // server puts the this client to the waiting list automatically and it will notify with
+                    //streaming_started event
+                    Logger.info("Stream does not exists or not started yet. Waiting for the stream to start. It will be notified with streaming_started event by the server");
+                } 
+                else if (errors["error"] == "no_stream_exist" || errors["error"] == "WebSocketNotConnected"
 	                || errors["error"] == "not_initialized_yet" || errors["error"] == "data_store_not_available"
 	                || errors["error"] == "highResourceUsage" || errors["error"] == "unauthorized_access"
 	                || errors["error"] == "user_blocked") {
