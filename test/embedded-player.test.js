@@ -795,11 +795,14 @@ describe("WebPlayer", function() {
 	
 	it("handleWebRTCInfoMessages", async function() {
 
+		this.timeout(10000);
 		var videoContainer = document.createElement("video_container");
-
 		var placeHolder = document.createElement("place_holder");
+		document.body.appendChild(videoContainer);	
+		document.body.appendChild(placeHolder);	
 
-		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:"  };
+		var locationComponent = { href: 'http://example.com?id=stream123', 
+			search: "?id=stream123&playOrder=webrtc,hls,dash", pathname: "/", protocol: "http:"  };
 		var windowComponent = {
 			location: locationComponent,
 			document: document,
@@ -807,7 +810,14 @@ describe("WebPlayer", function() {
 		};
 
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+		await player.initialize().then(()=> {
+				
+			}).catch((err) => {
+				expect.fail("it should not fail because we skip videojs and dash is already loaded");
+			});
+
 		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake.returns(Promise.resolve("")));
+
 		var infos = {
 			info: "ice_connection_state_changed",
 			obj: {
@@ -836,7 +846,7 @@ describe("WebPlayer", function() {
 
 		expect(tryNextTech.calledTwice).to.be.true;
 		
-		await player.playIfExists("webrtc");
+		await player.playIfExists("webrtc", "streamId");
 
 		expect(player.videojsPlayer).to.not.be.null;
 		
@@ -862,17 +872,27 @@ describe("WebPlayer", function() {
 
 		infos = {
 			info: "streaming_started",
+			obj: {
+				streamId: "streamId"
+			}
 
 		}
 		player.handleWebRTCInfoMessages(infos);
 
 		expect(playIfExistsMethod.calledOnce).to.be.true;	
+
+		
+	
 	});
 
 	it("testAutoPlay",async function(){
 		var videoContainer = document.createElement("video_container");
-		  
+		
+		document.body.appendChild(videoContainer);	
 		var placeHolder = document.createElement("place_holder");
+		document.body.appendChild(placeHolder);	
+
+
 		  			
 		var locationComponent = { href: 'http://example.com?id=stream123.mp4', search: "?id=stream123.mp4", pathname: "/", protocol: "http:"  };
 		var windowComponent = {  location : locationComponent,
