@@ -232,6 +232,8 @@ export class WebPlayer {
      */
     activeStreamId;
 
+    resyncTriggered;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -423,6 +425,7 @@ export class WebPlayer {
         this.isIPCamera = false;
         this.playerEvents = WebPlayer.PLAYER_EVENTS
         this.backupStreamId = null;
+        this.resyncTriggered = false;
     }
     
     initializeFromUrlParams() {
@@ -585,7 +588,12 @@ export class WebPlayer {
             else if (infos["obj"].state == "failed" || infos["obj"].state == "disconnected" || infos["obj"].state == "closed") {
 				//
 				Logger.warn("Ice connection is not connected. tryNextTech to replay");
-				this.tryNextTech();
+                if(this.resyncTriggered) {
+                    this.resyncTriggered = false;
+                }
+                else {
+                    this.tryNextTech();
+                }
 			}
 
         }
@@ -700,6 +708,13 @@ export class WebPlayer {
 	            //Logger.warn("info callback: " + JSON.stringify(infos));
 				this.handleWebRTCInfoMessages(infos);
 	        });
+
+            this.videojsPlayer.on('auto-resync-triggered', (event, infos) => {
+                Logger.info("*************************************************");
+                Logger.warn("auto-resync-triggered callback: " + JSON.stringify(infos));
+                this.resyncTriggered = true;
+                this.playerListener("auto-resync-triggered", infos);
+            });
 
 
 	        this.videojsPlayer.on('webrtc-error', (event, errors) => {
