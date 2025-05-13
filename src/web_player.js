@@ -605,7 +605,7 @@ export class WebPlayer {
         else if (infos["info"] == "streaming_started") 
         {
             Logger.info("Requested stream has started");
-            this.playIfExists(this.currentPlayType, this.activeStreamId);
+            this.playIfExists(this.currentPlayType, infos["obj"].streamId);
         }
 	}
 
@@ -711,7 +711,15 @@ export class WebPlayer {
                 {
                     // server puts the this client to the waiting list automatically and it will notify with
                     //streaming_started event
-                    Logger.info("Stream does not exists or not started yet. Waiting for the stream to start. It will be notified with streaming_started event by the server");
+                    
+                    //check if backup stream id is set
+                    if (this.backupStreamId != null) {
+                        this.tryNextTech();
+                    }
+                    else {
+                        //if backup stream id is not set, let the server notify
+                         Logger.info("Stream "+errors["message"]["streamId"] +" does not exists or not started yet. Waiting for the stream to start. It will be notified with streaming_started event by the server");
+                    }
                 } 
                 else if (errors["error"] == "no_stream_exist" || errors["error"] == "WebSocketNotConnected"
 	                || errors["error"] == "not_initialized_yet" || errors["error"] == "data_store_not_available"
