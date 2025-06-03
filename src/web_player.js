@@ -1248,6 +1248,8 @@ export class WebPlayer {
 
         this.containerElement.innerHTML = this.videoHTMLContent;
 
+        // Extract clean streamId for protocols that don't support subfolders
+        var cleanStreamId = streamIdToPlay.includes('/') ? streamIdToPlay.split('/').pop() : streamIdToPlay;
 
         Logger.warn("Try to play the stream " + streamIdToPlay + " with " + this.currentPlayType);
         switch (this.currentPlayType) {
@@ -1278,7 +1280,7 @@ export class WebPlayer {
                     this.tryNextTech();
                 });
             case "dash":
-                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamIdToPlay + "/" + streamIdToPlay, WebPlayer.DASH_EXTENSION).then((streamPath) => {
+                return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, cleanStreamId + "/" + cleanStreamId, WebPlayer.DASH_EXTENSION).then((streamPath) => {
                     this.playViaDash(streamPath);
                 }).catch((error) => {
                     Logger.warn("DASH stream resource not available for stream:" + streamIdToPlay + " error is " + error + ". Try next play tech");
@@ -1286,9 +1288,7 @@ export class WebPlayer {
                 });
 
             case "webrtc":
-              
-
-                return this.playWithVideoJS(this.addSecurityParams(this.getWebsocketURLForStream(streamIdToPlay)), WebPlayer.WEBRTC_EXTENSION);
+                return this.playWithVideoJS(this.addSecurityParams(this.getWebsocketURLForStream(cleanStreamId)), WebPlayer.WEBRTC_EXTENSION);
             case "vod":
                 //TODO: Test case for vod
                 //1. Play stream with mp4 for VoD
