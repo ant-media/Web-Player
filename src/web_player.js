@@ -1249,9 +1249,12 @@ export class WebPlayer {
         this.containerElement.innerHTML = this.videoHTMLContent;
 
         // Extract clean streamId for protocols that don't support subfolders
-        var cleanStreamId = streamIdToPlay.includes('/') ? streamIdToPlay.split('/').pop() : streamIdToPlay;
+        var cleanStreamId = streamIdToPlay;
+        if (cleanStreamId) {
+            cleanStreamId = streamIdToPlay.includes('/') ? streamIdToPlay.split('/').pop() : streamIdToPlay;
+        }
 
-        Logger.warn("Try to play the stream " + streamIdToPlay + " with " + this.currentPlayType);
+        Logger.warn("Try to play the stream " + streamIdToPlay + " with " + this.currentPlayType + " CleanID " + cleanStreamId);
         switch (this.currentPlayType) {
             case "hls":
                 //TODO: Test case for hls
