@@ -450,8 +450,8 @@ export class WebPlayer {
     
 	    this.is360 = (getUrlParameter("is360", this.window.location.search) === "true") || this.is360;
 	    
-      this.start = getUrlParameter("start", this.window.location.search)?.split(',') || this.start;
-      this.end = getUrlParameter("end", this.window.location.search)?.split(',') || this.end;
+        this.start = getUrlParameter("start", this.window.location.search)?.split(',') || this.start;
+        this.end = getUrlParameter("end", this.window.location.search)?.split(',') || this.end;
 	    this.playType = getUrlParameter("playType", this.window.location.search)?.split(',') || this.playType;
 	    this.token = getUrlParameter("token", this.window.location.search) || this.token;
 	    let autoPlayLocal = getUrlParameter("autoplay", this.window.location.search);
