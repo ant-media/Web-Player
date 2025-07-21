@@ -109,6 +109,14 @@ export class WebPlayer {
     forcePlayWithAudio = false;
 
     /**
+     * request specific time duraion in HLS Playback
+     */
+
+    start = null;
+    
+    end = null;
+
+    /**
      * targetLatency: target latency in seconds. Optional. Default value is 3.
      * It will be taken from url parameter "targetLatency".
      * It's used for dash(cmaf) playback.
@@ -423,6 +431,8 @@ export class WebPlayer {
         this.isIPCamera = false;
         this.playerEvents = WebPlayer.PLAYER_EVENTS
         this.backupStreamId = null;
+        this.start = null;
+        this.end = null;
     }
     
     initializeFromUrlParams() {
@@ -440,6 +450,8 @@ export class WebPlayer {
     
 	    this.is360 = (getUrlParameter("is360", this.window.location.search) === "true") || this.is360;
 	    
+        this.start = getUrlParameter("start", this.window.location.search)?.split(',') || this.start;
+        this.end = getUrlParameter("end", this.window.location.search)?.split(',') || this.end;
 	    this.playType = getUrlParameter("playType", this.window.location.search)?.split(',') || this.playType;
 	    this.token = getUrlParameter("token", this.window.location.search) || this.token;
 	    let autoPlayLocal = getUrlParameter("autoplay", this.window.location.search);
@@ -1351,6 +1363,13 @@ export class WebPlayer {
         if (this.subscriberCode != null) {
             queryString += "subscriberCode=" + this.subscriberCode + "&";
         }
+        if (this.start != null) {
+            queryString += "start=" + this.start + "&";
+        }
+        if (this.end != null) {
+            queryString += "end=" + this.end + "&";
+        }
+
         //remove the last character if it's "&"
         if (queryString.endsWith("&")) {
             queryString = queryString.substring(0, queryString.length - 1);

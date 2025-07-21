@@ -50,6 +50,8 @@ describe("WebPlayer", function() {
 	      expect(player.targetLatency).to.equal(3);
 	      expect(player.subscriberId).to.be.null;
 	      expect(player.subscriberCode).to.be.null;
+	      expect(player.start).to.be.null;
+	      expect(player.end).to.be.null;
 	      expect(player.containerElement).to.equal(videoContainer);
 	      expect(player.placeHolderElement).to.equal(placeHolder);
 	      expect(player.iceConnected).to.false;
@@ -119,11 +121,12 @@ describe("WebPlayer", function() {
 		  var token = "this_is_the_token";
 		  var subscriberId = "this_is_subscriber_id";
 		  var subscriberCode = "this_is_subscriber_id_subscriberCode"
+		  var start = 1000; 
+		  var end = 1000;
 		  var locationComponent =  { href : 'http://example.com?id=stream123', 
 		  							 pathname:"/", 
 		  							 search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
-		  								"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false"
-									, hostname:"example.com", port:"", protocol:"http:"	
+		  								"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false" + "&start="+ start +"&end="+ end, hostname:"example.com", port:"", protocol:"http:"	
 		  								
 		  							 };
 		  var windowComponent = { location : locationComponent,
@@ -154,7 +157,7 @@ describe("WebPlayer", function() {
 
 		  console.log("player.getSecurityQueryParams(): " + player.getSecurityQueryParams());
 
-	      expect(player.getSecurityQueryParams()).to.be.equal("token="+token+"&subscriberId="+subscriberId+"&subscriberCode="+subscriberCode);      
+	      expect(player.getSecurityQueryParams()).to.be.equal("token="+token+"&subscriberId="+subscriberId+"&subscriberCode="+subscriberCode+"&start="+start+"&end="+end);      
     
 		  {
 			locationComponent =  {  href : 'http://example.com?id=stream123', 
