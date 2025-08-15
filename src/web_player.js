@@ -240,6 +240,11 @@ export class WebPlayer {
      */
     activeStreamId;
 
+    /**
+     * withCredentials: if true, the player will include credentials in cross-origin requests.
+     */
+    withCredentials;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -433,6 +438,7 @@ export class WebPlayer {
         this.backupStreamId = null;
         this.start = null;
         this.end = null;
+        this.withCredentials = true;
     }
     
     initializeFromUrlParams() {
@@ -494,6 +500,8 @@ export class WebPlayer {
         this.ptzMovement = getUrlParameter("ptzMovement", this.window.location.search) || this.ptzMovement;
 
         this.backupStreamId = getUrlParameter("backupStreamId", this.window.location.search) || this.backupStreamId;
+
+        this.withCredentials = (getUrlParameter("withCredentials", this.window.location.search) === "false") ? false : this.withCredentials;
 
 	}
 
@@ -815,7 +823,7 @@ export class WebPlayer {
         this.videojsPlayer.src({
             src: streamUrl,
             type: type,
-            withCredentials: true,
+            withCredentials: this.withCredentials,
             iceServers: this.iceServers,
             reconnect: false, //webrtc adaptor has auto reconnect scenario, just disable it, we manage it here
 
