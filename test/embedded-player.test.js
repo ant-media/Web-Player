@@ -124,7 +124,7 @@ describe("WebPlayer", function() {
 		  var subscriberCode = "this_is_subscriber_id_subscriberCode"
 		  var start = 1000; 
 		  var end = 1000;
-      var withCredentials = false;
+		  var withCredentials = false;
 		  var locationComponent =  { href : 'http://example.com?id=stream123', 
 		  							 pathname:"/", 
 		  							 search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
