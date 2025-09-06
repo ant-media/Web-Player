@@ -56,6 +56,7 @@ describe("WebPlayer", function() {
 	      expect(player.placeHolderElement).to.equal(placeHolder);
 	      expect(player.iceConnected).to.false;
 	      expect(player.errorCalled).to.false;
+	      expect(player.withCredentials).to.true;
 	      
 	      expect(player.getSecurityQueryParams()).to.be.equal("");
     });
@@ -123,11 +124,11 @@ describe("WebPlayer", function() {
 		  var subscriberCode = "this_is_subscriber_id_subscriberCode"
 		  var start = 1000; 
 		  var end = 1000;
+		  var withCredentials = false;
 		  var locationComponent =  { href : 'http://example.com?id=stream123', 
 		  							 pathname:"/", 
 		  							 search: "?id=stream123&playOrder=webrtc,hls,dash&token="+token+"&is360=true"+
-		  								"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false" + "&start="+ start +"&end="+ end, hostname:"example.com", port:"", protocol:"http:"	
-		  								
+		  								"&playType=webm&mute=false&targetLatency=6&subscriberId="+subscriberId+ "&subscriberCode="+subscriberCode+"&autoplay=false" + "&start="+ start +"&end="+ end + "&withCredentials=" + withCredentials , hostname:"example.com", port:"", protocol:"http:" 
 		  							 };
 		  var windowComponent = { location : locationComponent,
 		  						  document:  document};
@@ -149,6 +150,7 @@ describe("WebPlayer", function() {
 	      expect(player.placeHolderElement).to.equal(placeHolder);
 	      expect(player.iceConnected).to.false;
 	      expect(player.errorCalled).to.false;
+	      expect(player.withCredentials).to.false;
 
 		  expect(player.websocketBaseURL).to.be.equal('ws://example.com/');
 		  var fullWebSocketBaseUrl = player.getWebsocketURLForStream(player.streamId);
@@ -1142,7 +1144,7 @@ describe("WebPlayer", function() {
 		  						  			  
 		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 	 
-	    var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
+    var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
 		
 		// Mock videojsPlayer
 		player.videojsPlayer = {
