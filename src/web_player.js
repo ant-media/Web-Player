@@ -245,6 +245,26 @@ export class WebPlayer {
      */
     withCredentials;
 
+    /**
+     * hls.js player instance
+     */
+    hlsPlayer;
+
+    /**
+     * Flag to track if hls.js has been tried for current stream
+     */
+    hlsjsTriedForThisStream;
+
+    /**
+     * Current HLS stream URL being played
+     */
+    currentHlsUrl;
+
+    /**
+     * Player type for HLS playback: "videojs" (default) or "hlsjs"
+     */
+    player;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -368,6 +388,9 @@ export class WebPlayer {
 			return this.loadDashScript(); 
 		})
         .then(() => {
+			return this.loadHlsJs();
+		})
+        .then(() => {
 			if (this.is360 && !window.AFRAME) {
 				
 				return import('aframe');
@@ -388,6 +411,19 @@ export class WebPlayer {
                 this.dashjsLoaded = true;	 
                 console.log("dash.all.min.js is loaded");
             })
+        }
+        else {
+            return Promise.resolve();
+        }
+    }
+
+    loadHlsJs() {
+        if ((this.playOrder.includes("hls") || this.playOrder.includes("ll-hls")) && !this.hlsjsLoaded) {
+            return import('hls.js').then((hlsjs) => {
+                window.Hls = hlsjs.default;
+                this.hlsjsLoaded = true;
+                Logger.info("hls.js is loaded");
+            });
         }
         else {
             return Promise.resolve();
@@ -424,6 +460,7 @@ export class WebPlayer {
         this.videoPlayerId = "video-player";
         this.videojsLoaded = false;
         this.dashjsLoaded = false;
+        this.hlsjsLoaded = false;
         this.containerElementInitialDisplay = "block";
         this.placeHolderElementInitialDisplay = "block";
         this.forcePlayWithAudio = false;
@@ -439,6 +476,10 @@ export class WebPlayer {
         this.start = null;
         this.end = null;
         this.withCredentials = true;
+        this.hlsPlayer = null;
+        this.hlsjsTriedForThisStream = false;
+        this.currentHlsUrl = null;
+        this.player = "videojs";
     }
     
     initializeFromUrlParams() {
@@ -502,6 +543,8 @@ export class WebPlayer {
         this.backupStreamId = getUrlParameter("backupStreamId", this.window.location.search) || this.backupStreamId;
 
         this.withCredentials = (getUrlParameter("withCredentials", this.window.location.search) === "false") ? false : this.withCredentials;
+
+        this.player = getUrlParameter("player", this.window.location.search) || this.player;
 
 	}
 
@@ -934,7 +977,16 @@ export class WebPlayer {
                         if (!this.errorCalled) {
                             this.errorCalled = true;
                             setTimeout(() => {
-                                this.tryNextTech();
+                                // If it's HLS and hls.js hasn't been tried yet, try hls.js before going to next tech
+                                if ((this.currentPlayType === "hls" || this.currentPlayType === "ll-hls") 
+                                    && !this.hlsjsTriedForThisStream 
+                                    && this.currentHlsUrl 
+                                    && window.Hls && window.Hls.isSupported()) {
+                                    Logger.info("Video.js HLS playback failed, trying hls.js as fallback");
+                                    this.playWithHlsJs(this.currentHlsUrl);
+                                } else {
+                                    this.tryNextTech();
+                                }
                                 this.errorCalled = false;
                             }, 2500)
                         }
@@ -1052,6 +1104,7 @@ export class WebPlayer {
 		{
 	        this.destroyDashPlayer();
 	        this.destroyVideoJSPlayer();
+	        this.destroyHlsPlayer();
 	        this.setPlayerVisible(false);
 
             //before changing play type, let's check if there is any backup stream
@@ -1249,11 +1302,161 @@ export class WebPlayer {
     }
 
     /**
+     * destroy the hls.js player
+     */
+    destroyHlsPlayer() {
+        if (this.hlsPlayer) {
+            this.hlsPlayer.destroy();
+            this.hlsPlayer = null;
+        }
+    }
+
+    /**
+     * Play HLS stream using hls.js library
+     * @param {string} streamUrl - The HLS stream URL
+     */
+    playWithHlsJs(streamUrl) {
+        this.destroyVideoJSPlayer();
+        this.destroyHlsPlayer();
+        this.destroyDashPlayer();
+	    this.setPlayerVisible(false);
+        this.hlsjsTriedForThisStream = true;
+
+        // Reset the container with a plain video element for hls.js
+        this.containerElement.innerHTML = this.videoHTMLContent;
+        
+        const video = this.dom.getElementById(this.videoPlayerId);
+        
+        if (!video) {
+            Logger.error("Video element not found for hls.js playback");
+            this.tryNextTech();
+            return;
+        }
+
+        if (window.Hls && window.Hls.isSupported()) {
+            Logger.info("Playing with hls.js: " + streamUrl);
+            
+            this.hlsPlayer = new window.Hls({
+                debug: false,
+                enableWorker: true,
+                lowLatencyMode: this.currentPlayType === "ll-hls",
+                liveSyncDuration: this.targetLatency,
+                liveMaxLatencyDuration: this.targetLatency * 2,
+                xhrSetup: (xhr, url) => {
+                    if (this.withCredentials) {
+                        xhr.withCredentials = true;
+                    }
+                }
+            });
+
+            this.hlsPlayer.loadSource(streamUrl);
+            this.hlsPlayer.attachMedia(video);
+
+            this.hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                Logger.info("hls.js manifest parsed, starting playback");
+                this.setPlayerVisible(true);
+                if (this.autoPlay) {
+                    video.play().catch((e) => {
+                        if (e.name === "NotAllowedError" && !this.forcePlayWithAudio) {
+                            video.muted = true;
+                            video.play();
+                        }
+                        Logger.warn("hls.js autoplay issue: " + e);
+                    });
+                }
+            });
+
+            this.hlsPlayer.on(window.Hls.Events.ERROR, (event, data) => {
+                Logger.warn("hls.js error: " + data.type + " - " + data.details);
+                if (data.fatal) {
+                    switch (data.type) {
+                        case window.Hls.ErrorTypes.NETWORK_ERROR:
+                            Logger.error("hls.js fatal network error, trying to recover");
+                            this.hlsPlayer.startLoad();
+                            setTimeout(() => {
+                                    video.play().catch(e => Logger.warn("hls.js is trying to play and an error occured:" + e));
+                                }, 500);
+                            break;
+                        case window.Hls.ErrorTypes.MEDIA_ERROR:
+                            Logger.error("hls.js fatal media error, trying to recover");
+                            this.hlsPlayer.recoverMediaError();
+                            setTimeout(() => {
+                                    video.play().catch(e => Logger.warn("hls.js trying to play and an error occured: " +  e));
+                                }, 500);
+                            break;
+                        default:
+                            Logger.error("hls.js unrecoverable error, trying next tech");
+                            this.tryNextTech();
+                            break;
+                    }
+                }
+                if (this.playerListener != null) {
+                    this.playerListener("hlsjs-error", data);
+                }
+            });
+
+            // Add standard video event listeners
+            video.addEventListener('play', () => {
+                this.setPlayerVisible(true);
+                if (this.playerListener != null) {
+                    this.playerListener("play");
+                }
+            });
+
+            video.addEventListener('pause', () => {
+                if (this.playerListener != null) {
+                    this.playerListener("pause");
+                }
+            });
+
+            video.addEventListener('ended', () => {
+                Logger.warn("hls.js stream ended");
+                this.setPlayerVisible(false);
+                if (this.playerListener != null) {
+                    this.playerListener("ended");
+                }
+                // Reinitialize playback
+                setTimeout(() => {
+                    this.playIfExists(this.playOrder[0], this.activeStreamId);
+                }, 3000);
+            });
+
+            video.addEventListener('timeupdate', () => {
+                if (this.playerListener != null) {
+                    this.playerListener("timeupdate");
+                }
+            });
+
+            if (this.mute) {
+                video.muted = true;
+            }
+
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS support (Safari)
+            Logger.info("Using native HLS support");
+            video.src = streamUrl;
+            this.setPlayerVisible(true);
+            if (this.autoPlay) {
+                video.play().catch((e) => {
+                    if (e.name === "NotAllowedError" && !this.forcePlayWithAudio) {
+                        video.muted = true;
+                        video.play();
+                    }
+                });
+            }
+        } else {
+            Logger.error("hls.js is not supported and no native HLS support");
+            this.tryNextTech();
+        }
+    }
+
+    /**
      * Destory the player
      */
     destroy() {
         this.destroyVideoJSPlayer();
         this.destroyDashPlayer();
+        this.destroyHlsPlayer();
     }
 
     /**
@@ -1264,7 +1467,12 @@ export class WebPlayer {
         this.currentPlayType = tech;
         this.destroyVideoJSPlayer();
         this.destroyDashPlayer();
+        this.destroyHlsPlayer();
         this.setPlayerVisible(false);
+        
+        // Reset hls.js tried flag for new stream playback attempt
+        this.hlsjsTriedForThisStream = false;
+        this.currentHlsUrl = null;
 
         this.containerElement.innerHTML = this.videoHTMLContent;
 
@@ -1283,7 +1491,13 @@ export class WebPlayer {
                 //3. if files are not available check nextTech is being called
                 return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamIdToPlay, WebPlayer.HLS_EXTENSION).then((streamPath) => {
 
-                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    this.currentHlsUrl = streamPath;
+                    if (this.player === "hlsjs" && window.Hls && window.Hls.isSupported()) {
+                        Logger.info("Using hls.js player for HLS playback");
+                        this.playWithHlsJs(streamPath);
+                    } else {
+                        this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    }
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
@@ -1294,7 +1508,13 @@ export class WebPlayer {
             case "ll-hls":
                 return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, streamIdToPlay, WebPlayer.HLS_EXTENSION).then((streamPath) => {
 
-                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    this.currentHlsUrl = streamPath;
+                    if (this.player === "hlsjs" && window.Hls && window.Hls.isSupported()) {
+                        Logger.info("Using hls.js player for LL-HLS playback");
+                        this.playWithHlsJs(streamPath);
+                    } else {
+                        this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    }
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
@@ -1697,6 +1917,9 @@ export class WebPlayer {
         else if (this.dashPlayer) {
             return this.dashPlayer.time();
         } 
+        else if (this.hlsPlayer) {
+            return this.hlsPlayer.media.currentTime;
+        }
     }
 
 }
