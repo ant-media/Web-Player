@@ -383,32 +383,70 @@ export class WebPlayer {
 
     initialize() 
     {
-        return this.loadVideoJSComponents()
+        const initStartTime = performance.now();
+        console.debug("[WebPlayer] Starting JavaScript loading (parallel mode)...");
+        
+        // Determine what needs to be loaded based on playOrder
+        const needsVideoJS = this.playOrder.includes("hls") || 
+                            this.playOrder.includes("ll-hls") || 
+                            this.playOrder.includes("vod") || 
+                            this.playOrder.includes("webrtc");
+        const needsDash = this.playOrder.includes("dash");
+        const needsHlsJs = this.playOrder.includes("hls") || this.playOrder.includes("ll-hls");
+        
+        // Build array of independent loading promises to run in parallel
+        const loadPromises = [];
+        
+        if (needsVideoJS) {
+            loadPromises.push(this.loadVideoJSComponents());
+        }
+        
+        if (needsDash) {
+            loadPromises.push(this.loadDashScript());
+        }
+        
+        if (needsHlsJs) {
+            loadPromises.push(this.loadHlsJs());
+        }
+        
+        // Load all independent scripts in parallel
+        return Promise.all(loadPromises)
         .then(() => {
-			return this.loadDashScript(); 
-		})
-        .then(() => {
-			return this.loadHlsJs();
-		})
-        .then(() => {
-			if (this.is360 && !window.AFRAME) {
-				
-				return import('aframe');
-			}
+            // Load aframe after main scripts if needed (it's independent too)
+            if (this.is360 && !window.AFRAME) {
+                const aframeStartTime = performance.now();
+                return import('aframe').then(() => {
+                    const aframeLoadTime = performance.now() - aframeStartTime;
+                    console.debug(`[WebPlayer] aframe.js loaded in ${aframeLoadTime.toFixed(2)}ms`);
+                });
+            }
+        })
+		.then(() => {
+			const totalLoadTime = performance.now() - initStartTime;
+			console.debug(`[WebPlayer] ========================================`);
+			console.debug(`[WebPlayer] All JavaScript files loaded successfully`);
+			console.debug(`[WebPlayer] Total loading time: ${totalLoadTime.toFixed(2)}ms`);
+			console.debug(`[WebPlayer] ========================================`);
 		})
 		.catch((e) => {
+            const totalLoadTime = performance.now() - initStartTime;
             Logger.error("Scripts are not loaded. The error is " + e);
+            console.error(`[WebPlayer] Loading failed after ${totalLoadTime.toFixed(2)}ms`);
             throw e;
         });
     };
 
     loadDashScript() {
         if (this.playOrder.includes("dash") && !this.dashjsLoaded) {
+            const dashStartTime = performance.now();
+            console.debug("[WebPlayer] Loading dashjs...");
 		
            return import('dashjs/dist/dash.all.min.js').then((dashjs) => 
             {
 				window.dashjs = dashjs.default;
-                this.dashjsLoaded = true;	 
+                this.dashjsLoaded = true;
+                const dashLoadTime = performance.now() - dashStartTime;
+                console.debug(`[WebPlayer] dashjs loaded in ${dashLoadTime.toFixed(2)}ms`);
                 console.log("dash.all.min.js is loaded");
             })
         }
@@ -419,9 +457,13 @@ export class WebPlayer {
 
     loadHlsJs() {
         if ((this.playOrder.includes("hls") || this.playOrder.includes("ll-hls")) && !this.hlsjsLoaded) {
+            const hlsStartTime = performance.now();
+            console.debug("[WebPlayer] Loading hls.js...");
             return import('hls.js').then((hlsjs) => {
                 window.Hls = hlsjs.default;
                 this.hlsjsLoaded = true;
+                const hlsLoadTime = performance.now() - hlsStartTime;
+                console.debug(`[WebPlayer] hls.js loaded in ${hlsLoadTime.toFixed(2)}ms`);
                 Logger.info("hls.js is loaded");
             });
         }
@@ -551,22 +593,30 @@ export class WebPlayer {
     loadWebRTCComponents() {
         if (this.playOrder.includes("webrtc")) 
         {
+            const webrtcStartTime = performance.now();
+            console.debug("[WebPlayer] Loading WebRTC components...");
             return import('@antmedia/videojs-webrtc-plugin/dist/videojs-webrtc-plugin.css').then((css) =>
             {   
                 Logger.info("videojs-webrtc-plugin.css is loaded");
-                    const styleElement = this.dom.createElement('style');
-                    styleElement.textContent = css.default.toString(); // Assuming css module exports a string
-                    this.dom.head.appendChild(styleElement);
+                const styleElement = this.dom.createElement('style');
+                styleElement.textContent = css.default.toString(); // Assuming css module exports a string
+                this.dom.head.appendChild(styleElement);
         
-                    return import('@antmedia/videojs-webrtc-plugin').then((videojsWebrtcPluginLocal) => 
-                    {
-                        Logger.info("videojs-webrtc-plugin is loaded");
-
-                    });
+                const webrtcCssTime = performance.now() - webrtcStartTime;
+                console.debug(`[WebPlayer]   - videojs-webrtc-plugin CSS loaded in ${webrtcCssTime.toFixed(2)}ms`);
+                
+                const webrtcJsStartTime = performance.now();
+                return import('@antmedia/videojs-webrtc-plugin').then((videojsWebrtcPluginLocal) => 
+                {
+                    Logger.info("videojs-webrtc-plugin is loaded");
+                    const webrtcJsTime = performance.now() - webrtcJsStartTime;
+                    const webrtcTotalTime = performance.now() - webrtcStartTime;
+                    console.debug(`[WebPlayer]   - videojs-webrtc-plugin JS loaded in ${webrtcJsTime.toFixed(2)}ms`);
+                    console.debug(`[WebPlayer] WebRTC components total loading time: ${webrtcTotalTime.toFixed(2)}ms`);
+                });
             });
         }
         else {
-
             return Promise.resolve();
         }
     }
@@ -579,19 +629,50 @@ export class WebPlayer {
             //load videojs css
 			if (!this.videojsLoaded) 
 			{
-				return import('video.js/dist/video-js.min.css').then((css) => {
+				const videojsStartTime = performance.now();
+				console.debug("[WebPlayer] Loading VideoJS components (parallel mode)...");
+				
+				// Load CSS and video.js library in parallel
+				const cssStartTime = performance.now();
+				const cssPromise = import('video.js/dist/video-js.min.css').then((css) => {
 	                const styleElement = this.dom.createElement('style');
 				    styleElement.textContent = css.default.toString(); // Assuming css module exports a string
 				    this.dom.head.appendChild(styleElement);
-				})
-				.then(() => { return import("video.js") })
-				.then((videojs) => 
-				{
-                    window.videojs = videojs.default;		
-                    this.videojsLoaded = true;	 
-				})
-				.then(() => { return import('videojs-quality-selector-hls') } )
-				.then(() => { return this.loadWebRTCComponents(); });
+					const cssLoadTime = performance.now() - cssStartTime;
+					console.debug(`[WebPlayer]   - video.js CSS loaded in ${cssLoadTime.toFixed(2)}ms`);
+				});
+				
+				const videojsJsStartTime = performance.now();
+				const videojsPromise = import("video.js").then((videojs) => {
+					window.videojs = videojs.default;		
+					this.videojsLoaded = true;
+					const videojsJsLoadTime = performance.now() - videojsJsStartTime;
+					console.debug(`[WebPlayer]   - video.js library loaded in ${videojsJsLoadTime.toFixed(2)}ms`);
+				});
+				
+				// Wait for both CSS and video.js to complete, then load dependencies in parallel
+				return Promise.all([cssPromise, videojsPromise])
+				.then(() => { 
+					// Load quality-selector and WebRTC components in parallel if both are needed
+					const dependencyPromises = [];
+					
+					const qualityStartTime = performance.now();
+					const qualityPromise = import('videojs-quality-selector-hls').then(() => {
+						const qualityLoadTime = performance.now() - qualityStartTime;
+						console.debug(`[WebPlayer]   - videojs-quality-selector-hls loaded in ${qualityLoadTime.toFixed(2)}ms`);
+					});
+					dependencyPromises.push(qualityPromise);
+					
+					// Load WebRTC components if needed (can load in parallel with quality-selector)
+					if (this.playOrder.includes("webrtc")) {
+						dependencyPromises.push(this.loadWebRTCComponents());
+					}
+					
+					return Promise.all(dependencyPromises).then(() => {
+						const videojsTotalTime = performance.now() - videojsStartTime;
+						console.debug(`[WebPlayer] VideoJS components total loading time: ${videojsTotalTime.toFixed(2)}ms`);
+					});
+				});
 			}
 			else {
 				return Promise.resolve();
