@@ -245,6 +245,26 @@ export class WebPlayer {
      */
     withCredentials;
 
+    /**
+     * hls.js player instance
+     */
+    hlsPlayer;
+
+    /**
+     * Flag to track if hls.js has been tried for current stream
+     */
+    hlsjsTriedForThisStream;
+
+    /**
+     * Current HLS stream URL being played
+     */
+    currentHlsUrl;
+
+    /**
+     * Player type for HLS playback: "videojs" (default) or "hlsjs"
+     */
+    player;
+
 
     constructor(configOrWindow, containerElement, placeHolderElement) {
 
@@ -363,31 +383,89 @@ export class WebPlayer {
 
     initialize() 
     {
-        return this.loadVideoJSComponents()
+        const initStartTime = performance.now();
+        console.debug("[WebPlayer] Starting JavaScript loading (parallel mode)...");
+        
+        // Determine what needs to be loaded based on playOrder
+        const needsVideoJS = this.playOrder.includes("hls") || 
+                            this.playOrder.includes("ll-hls") || 
+                            this.playOrder.includes("vod") || 
+                            this.playOrder.includes("webrtc");
+        const needsDash = this.playOrder.includes("dash");
+        const needsHlsJs = this.playOrder.includes("hls") || this.playOrder.includes("ll-hls");
+        
+        // Build array of independent loading promises to run in parallel
+        const loadPromises = [];
+        
+        if (needsVideoJS) {
+            loadPromises.push(this.loadVideoJSComponents());
+        }
+        
+        if (needsDash) {
+            loadPromises.push(this.loadDashScript());
+        }
+        
+        if (needsHlsJs) {
+            loadPromises.push(this.loadHlsJs());
+        }
+        
+        // Load all independent scripts in parallel
+        return Promise.all(loadPromises)
         .then(() => {
-			return this.loadDashScript(); 
-		})
-        .then(() => {
-			if (this.is360 && !window.AFRAME) {
-				
-				return import('aframe');
-			}
+            // Load aframe after main scripts if needed (it's independent too)
+            if (this.is360 && !window.AFRAME) {
+                const aframeStartTime = performance.now();
+                return import('aframe').then(() => {
+                    const aframeLoadTime = performance.now() - aframeStartTime;
+                    console.debug(`[WebPlayer] aframe.js loaded in ${aframeLoadTime.toFixed(2)}ms`);
+                });
+            }
+        })
+		.then(() => {
+			const totalLoadTime = performance.now() - initStartTime;
+			console.debug(`[WebPlayer] ========================================`);
+			console.debug(`[WebPlayer] All JavaScript files loaded successfully`);
+			console.debug(`[WebPlayer] Total loading time: ${totalLoadTime.toFixed(2)}ms`);
+			console.debug(`[WebPlayer] ========================================`);
 		})
 		.catch((e) => {
+            const totalLoadTime = performance.now() - initStartTime;
             Logger.error("Scripts are not loaded. The error is " + e);
+            console.error(`[WebPlayer] Loading failed after ${totalLoadTime.toFixed(2)}ms`);
             throw e;
         });
     };
 
     loadDashScript() {
         if (this.playOrder.includes("dash") && !this.dashjsLoaded) {
+            const dashStartTime = performance.now();
+            console.debug("[WebPlayer] Loading dashjs...");
 		
            return import('dashjs/dist/dash.all.min.js').then((dashjs) => 
             {
 				window.dashjs = dashjs.default;
-                this.dashjsLoaded = true;	 
+                this.dashjsLoaded = true;
+                const dashLoadTime = performance.now() - dashStartTime;
+                console.debug(`[WebPlayer] dashjs loaded in ${dashLoadTime.toFixed(2)}ms`);
                 console.log("dash.all.min.js is loaded");
             })
+        }
+        else {
+            return Promise.resolve();
+        }
+    }
+
+    loadHlsJs() {
+        if ((this.playOrder.includes("hls") || this.playOrder.includes("ll-hls")) && !this.hlsjsLoaded) {
+            const hlsStartTime = performance.now();
+            console.debug("[WebPlayer] Loading hls.js...");
+            return import('hls.js').then((hlsjs) => {
+                window.Hls = hlsjs.default;
+                this.hlsjsLoaded = true;
+                const hlsLoadTime = performance.now() - hlsStartTime;
+                console.debug(`[WebPlayer] hls.js loaded in ${hlsLoadTime.toFixed(2)}ms`);
+                Logger.info("hls.js is loaded");
+            });
         }
         else {
             return Promise.resolve();
@@ -424,6 +502,7 @@ export class WebPlayer {
         this.videoPlayerId = "video-player";
         this.videojsLoaded = false;
         this.dashjsLoaded = false;
+        this.hlsjsLoaded = false;
         this.containerElementInitialDisplay = "block";
         this.placeHolderElementInitialDisplay = "block";
         this.forcePlayWithAudio = false;
@@ -439,6 +518,10 @@ export class WebPlayer {
         this.start = null;
         this.end = null;
         this.withCredentials = true;
+        this.hlsPlayer = null;
+        this.hlsjsTriedForThisStream = false;
+        this.currentHlsUrl = null;
+        this.player = "videojs";
     }
     
     initializeFromUrlParams() {
@@ -503,27 +586,37 @@ export class WebPlayer {
 
         this.withCredentials = (getUrlParameter("withCredentials", this.window.location.search) === "false") ? false : this.withCredentials;
 
+        this.player = getUrlParameter("player", this.window.location.search) || this.player;
+
 	}
 
     loadWebRTCComponents() {
         if (this.playOrder.includes("webrtc")) 
         {
+            const webrtcStartTime = performance.now();
+            console.debug("[WebPlayer] Loading WebRTC components...");
             return import('@antmedia/videojs-webrtc-plugin/dist/videojs-webrtc-plugin.css').then((css) =>
             {   
                 Logger.info("videojs-webrtc-plugin.css is loaded");
-                    const styleElement = this.dom.createElement('style');
-                    styleElement.textContent = css.default.toString(); // Assuming css module exports a string
-                    this.dom.head.appendChild(styleElement);
+                const styleElement = this.dom.createElement('style');
+                styleElement.textContent = css.default.toString(); // Assuming css module exports a string
+                this.dom.head.appendChild(styleElement);
         
-                    return import('@antmedia/videojs-webrtc-plugin').then((videojsWebrtcPluginLocal) => 
-                    {
-                        Logger.info("videojs-webrtc-plugin is loaded");
-
-                    });
+                const webrtcCssTime = performance.now() - webrtcStartTime;
+                console.debug(`[WebPlayer]   - videojs-webrtc-plugin CSS loaded in ${webrtcCssTime.toFixed(2)}ms`);
+                
+                const webrtcJsStartTime = performance.now();
+                return import('@antmedia/videojs-webrtc-plugin').then((videojsWebrtcPluginLocal) => 
+                {
+                    Logger.info("videojs-webrtc-plugin is loaded");
+                    const webrtcJsTime = performance.now() - webrtcJsStartTime;
+                    const webrtcTotalTime = performance.now() - webrtcStartTime;
+                    console.debug(`[WebPlayer]   - videojs-webrtc-plugin JS loaded in ${webrtcJsTime.toFixed(2)}ms`);
+                    console.debug(`[WebPlayer] WebRTC components total loading time: ${webrtcTotalTime.toFixed(2)}ms`);
+                });
             });
         }
         else {
-
             return Promise.resolve();
         }
     }
@@ -536,19 +629,50 @@ export class WebPlayer {
             //load videojs css
 			if (!this.videojsLoaded) 
 			{
-				return import('video.js/dist/video-js.min.css').then((css) => {
+				const videojsStartTime = performance.now();
+				console.debug("[WebPlayer] Loading VideoJS components (parallel mode)...");
+				
+				// Load CSS and video.js library in parallel
+				const cssStartTime = performance.now();
+				const cssPromise = import('video.js/dist/video-js.min.css').then((css) => {
 	                const styleElement = this.dom.createElement('style');
 				    styleElement.textContent = css.default.toString(); // Assuming css module exports a string
 				    this.dom.head.appendChild(styleElement);
-				})
-				.then(() => { return import("video.js") })
-				.then((videojs) => 
-				{
-                    window.videojs = videojs.default;		
-                    this.videojsLoaded = true;	 
-				})
-				.then(() => { return import('videojs-quality-selector-hls') } )
-				.then(() => { return this.loadWebRTCComponents(); });
+					const cssLoadTime = performance.now() - cssStartTime;
+					console.debug(`[WebPlayer]   - video.js CSS loaded in ${cssLoadTime.toFixed(2)}ms`);
+				});
+				
+				const videojsJsStartTime = performance.now();
+				const videojsPromise = import("video.js").then((videojs) => {
+					window.videojs = videojs.default;		
+					this.videojsLoaded = true;
+					const videojsJsLoadTime = performance.now() - videojsJsStartTime;
+					console.debug(`[WebPlayer]   - video.js library loaded in ${videojsJsLoadTime.toFixed(2)}ms`);
+				});
+				
+				// Wait for both CSS and video.js to complete, then load dependencies in parallel
+				return Promise.all([cssPromise, videojsPromise])
+				.then(() => { 
+					// Load quality-selector and WebRTC components in parallel if both are needed
+					const dependencyPromises = [];
+					
+					const qualityStartTime = performance.now();
+					const qualityPromise = import('videojs-quality-selector-hls').then(() => {
+						const qualityLoadTime = performance.now() - qualityStartTime;
+						console.debug(`[WebPlayer]   - videojs-quality-selector-hls loaded in ${qualityLoadTime.toFixed(2)}ms`);
+					});
+					dependencyPromises.push(qualityPromise);
+					
+					// Load WebRTC components if needed (can load in parallel with quality-selector)
+					if (this.playOrder.includes("webrtc")) {
+						dependencyPromises.push(this.loadWebRTCComponents());
+					}
+					
+					return Promise.all(dependencyPromises).then(() => {
+						const videojsTotalTime = performance.now() - videojsStartTime;
+						console.debug(`[WebPlayer] VideoJS components total loading time: ${videojsTotalTime.toFixed(2)}ms`);
+					});
+				});
 			}
 			else {
 				return Promise.resolve();
@@ -934,7 +1058,16 @@ export class WebPlayer {
                         if (!this.errorCalled) {
                             this.errorCalled = true;
                             setTimeout(() => {
-                                this.tryNextTech();
+                                // If it's HLS and hls.js hasn't been tried yet, try hls.js before going to next tech
+                                if ((this.currentPlayType === "hls" || this.currentPlayType === "ll-hls") 
+                                    && !this.hlsjsTriedForThisStream 
+                                    && this.currentHlsUrl 
+                                    && window.Hls && window.Hls.isSupported()) {
+                                    Logger.info("Video.js HLS playback failed, trying hls.js as fallback");
+                                    this.playWithHlsJs(this.currentHlsUrl);
+                                } else {
+                                    this.tryNextTech();
+                                }
                                 this.errorCalled = false;
                             }, 2500)
                         }
@@ -1052,6 +1185,7 @@ export class WebPlayer {
 		{
 	        this.destroyDashPlayer();
 	        this.destroyVideoJSPlayer();
+	        this.destroyHlsPlayer();
 	        this.setPlayerVisible(false);
 
             //before changing play type, let's check if there is any backup stream
@@ -1249,11 +1383,162 @@ export class WebPlayer {
     }
 
     /**
+     * destroy the hls.js player
+     */
+    destroyHlsPlayer() {
+        if (this.hlsPlayer) {
+            this.hlsPlayer.destroy();
+            this.hlsPlayer = null;
+        }
+    }
+
+    /**
+     * Play HLS stream using hls.js library
+     * @param {string} streamUrl - The HLS stream URL
+     */
+    playWithHlsJs(streamUrl) {
+        this.destroyVideoJSPlayer();
+        this.destroyHlsPlayer();
+        this.destroyDashPlayer();
+	    this.setPlayerVisible(false);
+        this.hlsjsTriedForThisStream = true;
+
+        // Reset the container with a plain video element for hls.js
+        this.containerElement.innerHTML = this.videoHTMLContent;
+        
+        const video = this.dom.getElementById(this.videoPlayerId);
+        
+        if (!video) {
+            Logger.error("Video element not found for hls.js playback");
+            this.tryNextTech();
+            return;
+        }
+
+        if (window.Hls && window.Hls.isSupported()) {
+            Logger.info("Playing with hls.js: " + streamUrl);
+            
+            this.hlsPlayer = new window.Hls({
+                debug: false,
+                enableWorker: true,
+                lowLatencyMode: this.currentPlayType === "ll-hls",
+                liveSyncDuration: this.targetLatency,
+                liveMaxLatencyDuration: this.targetLatency * 2,
+                xhrSetup: (xhr, url) => {
+                    if (this.withCredentials) {
+                        xhr.withCredentials = true;
+                    }
+                }
+            });
+
+            this.hlsPlayer.loadSource(streamUrl);
+            this.hlsPlayer.attachMedia(video);
+
+            this.hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                Logger.info("hls.js manifest parsed, starting playback");
+                this.setPlayerVisible(true);
+                if (this.autoPlay) {
+                    Logger.warn("Attempting to autoplay with hls.js");
+                    video.play().catch((e) => {
+                        if (e.name === "NotAllowedError" && !this.forcePlayWithAudio) {
+                            video.muted = true;
+                            video.play();
+                        }
+                        Logger.warn("hls.js autoplay issue: " + e);
+                    });
+                }
+            });
+
+            this.hlsPlayer.on(window.Hls.Events.ERROR, (event, data) => {
+                Logger.warn("hls.js error: " + data.type + " - " + data.details);
+                if (data.fatal) {
+                    switch (data.type) {
+                        case window.Hls.ErrorTypes.NETWORK_ERROR:
+                            Logger.error("hls.js fatal network error, trying to recover");
+                            this.hlsPlayer.startLoad();
+                            setTimeout(() => {
+                                    video.play().catch(e => Logger.warn("hls.js is trying to play and an error occured:" + e));
+                                }, 500);
+                            break;
+                        case window.Hls.ErrorTypes.MEDIA_ERROR:
+                            Logger.error("hls.js fatal media error, trying to recover");
+                            this.hlsPlayer.recoverMediaError();
+                            setTimeout(() => {
+                                    video.play().catch(e => Logger.warn("hls.js trying to play and an error occured: " +  e));
+                                }, 500);
+                            break;
+                        default:
+                            Logger.error("hls.js unrecoverable error, trying next tech");
+                            this.tryNextTech();
+                            break;
+                    }
+                }
+                if (this.playerListener != null) {
+                    this.playerListener("hlsjs-error", data);
+                }
+            });
+
+            // Add standard video event listeners
+            video.addEventListener('play', () => {
+                this.setPlayerVisible(true);
+                if (this.playerListener != null) {
+                    this.playerListener("play");
+                }
+            });
+
+            video.addEventListener('pause', () => {
+                if (this.playerListener != null) {
+                    this.playerListener("pause");
+                }
+            });
+
+            video.addEventListener('ended', () => {
+                Logger.warn("hls.js stream ended");
+                this.setPlayerVisible(false);
+                if (this.playerListener != null) {
+                    this.playerListener("ended");
+                }
+                // Reinitialize playback
+                setTimeout(() => {
+                    this.playIfExists(this.playOrder[0], this.activeStreamId);
+                }, 3000);
+            });
+
+            video.addEventListener('timeupdate', () => {
+                if (this.playerListener != null) {
+                    this.playerListener("timeupdate");
+                }
+            });
+
+            if (this.mute) {
+                video.muted = true;
+            }
+
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS support (Safari)
+            Logger.info("Using native HLS support");
+            video.src = streamUrl;
+            this.setPlayerVisible(true);
+            if (this.autoPlay) {
+                video.play().catch((e) => {
+                    if (e.name === "NotAllowedError" && !this.forcePlayWithAudio) {
+                        video.muted = true;
+                        video.play();
+                    }
+                });
+            }
+        } else {
+            Logger.error("hls.js is not supported and no native HLS support");
+            this.tryNextTech();
+        }
+    }
+
+    /**
      * Destory the player
      */
     destroy() {
         this.destroyVideoJSPlayer();
         this.destroyDashPlayer();
+        this.destroyHlsPlayer();
     }
 
     /**
@@ -1264,7 +1549,12 @@ export class WebPlayer {
         this.currentPlayType = tech;
         this.destroyVideoJSPlayer();
         this.destroyDashPlayer();
+        this.destroyHlsPlayer();
         this.setPlayerVisible(false);
+        
+        // Reset hls.js tried flag for new stream playback attempt
+        this.hlsjsTriedForThisStream = false;
+        this.currentHlsUrl = null;
 
         this.containerElement.innerHTML = this.videoHTMLContent;
 
@@ -1283,7 +1573,13 @@ export class WebPlayer {
                 //3. if files are not available check nextTech is being called
                 return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER, streamIdToPlay, WebPlayer.HLS_EXTENSION).then((streamPath) => {
 
-                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    this.currentHlsUrl = streamPath;
+                    if (this.player === "hlsjs" && window.Hls && window.Hls.isSupported()) {
+                        Logger.info("Using hls.js player for HLS playback");
+                        this.playWithHlsJs(streamPath);
+                    } else {
+                        this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    }
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
@@ -1294,7 +1590,13 @@ export class WebPlayer {
             case "ll-hls":
                 return this.checkStreamExistsViaHttp(WebPlayer.STREAMS_FOLDER + "/" + WebPlayer.LL_HLS_FOLDER, streamIdToPlay, WebPlayer.HLS_EXTENSION).then((streamPath) => {
 
-                    this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    this.currentHlsUrl = streamPath;
+                    if (this.player === "hlsjs" && window.Hls && window.Hls.isSupported()) {
+                        Logger.info("Using hls.js player for LL-HLS playback");
+                        this.playWithHlsJs(streamPath);
+                    } else {
+                        this.playWithVideoJS(streamPath, WebPlayer.HLS_EXTENSION);
+                    }
                     Logger.warn("incoming stream path: " + streamPath);
 
                 }).catch((error) => {
@@ -1697,6 +1999,9 @@ export class WebPlayer {
         else if (this.dashPlayer) {
             return this.dashPlayer.time();
         } 
+        else if (this.hlsPlayer) {
+            return this.hlsPlayer.media.currentTime;
+        }
     }
 
 }

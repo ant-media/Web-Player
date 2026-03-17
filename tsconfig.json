@@ -17,6 +17,7 @@
     "strict": true,
     "target": "es6",
     "outDir": "./tsbuild",
+    "skipLibCheck": true,
     "typeRoots": [
       "node_modules/@types"
     ],
