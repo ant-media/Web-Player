@@ -1201,13 +1201,105 @@ describe("WebPlayer", function() {
 		rateChangeCallback();
 		expect(player.playerListener.calledWith('ratechange', sinon.match.any, { playbackRate: 1.0 })).to.be.true;
 		
-	})
-    
-    
+	});
+
+	it("playWithHlsJs", async function() {
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+		document.body.appendChild(videoContainer);
+		document.body.appendChild(placeHolder);
+
+		var locationComponent = { href: 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/", protocol: "http:" };
+		var windowComponent = { location: locationComponent, document: document };
+
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+		// Mock window.Hls
+		var hlsMock = {
+			loadSource: sinon.fake(),
+			attachMedia: sinon.fake(),
+			on: sinon.fake(),
+			destroy: sinon.fake()
+		};
+		var hlsConstructor = sinon.fake.returns(hlsMock);
+		hlsConstructor.isSupported = sinon.fake.returns(true);
+		hlsConstructor.Events = {
+			MANIFEST_PARSED: 'MANIFEST_PARSED',
+			ERROR: 'ERROR'
+		};
+		hlsConstructor.ErrorTypes = {
+			NETWORK_ERROR: 'NETWORK_ERROR',
+			MEDIA_ERROR: 'MEDIA_ERROR'
+		};
+		hlsConstructor.ErrorDetails = {
+			MANIFEST_LOAD_ERROR: 'MANIFEST_LOAD_ERROR'
+		};
+
+		// Set window.Hls
+		window.Hls = hlsConstructor;
+
+		// Mock getElementById to return a video element
+		var videoElement = document.createElement('video');
+		sinon.replace(player.dom, 'getElementById', sinon.fake.returns(videoElement));
+
+		var setPlayerVisible = sinon.replace(player, "setPlayerVisible", sinon.fake());
+		var tryNextTech = sinon.replace(player, "tryNextTech", sinon.fake());
+
+		player.playWithHlsJs("http://example.com/stream.m3u8");
+
+		expect(hlsConstructor.calledOnce).to.be.true;
+		expect(hlsMock.loadSource.calledWith("http://example.com/stream.m3u8")).to.be.true;
+		expect(hlsMock.attachMedia.called).to.be.true;
+		expect(hlsMock.on.called).to.be.true;
+
+		// Simulate MANIFEST_PARSED event
+		var manifestParsedCallback = hlsMock.on.args.find(arg => arg[0] === 'MANIFEST_PARSED')[1];
+		manifestParsedCallback();
+		expect(setPlayerVisible.calledWith(true)).to.be.true;
+
+		// Simulate ERROR event
+		var errorCallback = hlsMock.on.args.find(arg => arg[0] === 'ERROR')[1];
+		errorCallback('event', { type: 'NETWORK_ERROR_NOT_DEFINED', fatal:true });
+		expect(tryNextTech.called).to.be.true;
+
+		// Clean up
+		delete window.Hls;
+	});
+
+	it("destroyHlsPlayer", function() {
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+
+		var locationComponent = { href: 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/", protocol: "http:" };
+		var windowComponent = { location: locationComponent, document: document };
+
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+		// Mock hlsPlayer
+		var hlsPlayerMock = { destroy: sinon.fake() };
+		player.hlsPlayer = hlsPlayerMock;
+
+		player.destroyHlsPlayer();
+
+		expect(hlsPlayerMock.destroy.calledOnce).to.be.true;
+		expect(player.hlsPlayer).to.be.null;
+	});
+
+	it("destroyHlsPlayer with no player", function() {
+		var videoContainer = document.createElement("video_container");
+		var placeHolder = document.createElement("place_holder");
+
+		var locationComponent = { href: 'http://example.com?id=stream123', search: "?id=stream123", pathname: "/", protocol: "http:" };
+		var windowComponent = { location: locationComponent, document: document };
+
+		var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+		player.hlsPlayer = null;
+
+		// Should not throw error
+		player.destroyHlsPlayer();
+
+		expect(player.hlsPlayer).to.be.null;
+	});
+
 });
-
-
-
-
-   
-    

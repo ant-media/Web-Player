@@ -1437,6 +1437,7 @@ export class WebPlayer {
                 Logger.info("hls.js manifest parsed, starting playback");
                 this.setPlayerVisible(true);
                 if (this.autoPlay) {
+                    Logger.warn("Attempting to autoplay with hls.js");
                     video.play().catch((e) => {
                         if (e.name === "NotAllowedError" && !this.forcePlayWithAudio) {
                             video.muted = true;
