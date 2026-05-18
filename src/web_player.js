@@ -1812,17 +1812,8 @@ export class WebPlayer {
             left: 50%;
             top: 50%;
             transform: translate(-50%, -50%);
-            border: none;
-            border-radius: 50%;
-            background-color: #bc1b22;
-            color: #ffffff;
-            font-weight: bold;
             cursor: pointer;
             user-select: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
           }
           .ptz-movement-select {
             width: 100%;
@@ -1848,7 +1839,7 @@ export class WebPlayer {
                 <img id="left-button" style="position: absolute; left: 0px; width: 50px; height: 50px; cursor: pointer; top: 50%; transform: translateY(-50%) rotate(-90deg);" src="`+UpArrow.src+`"/>
                 <img id="right-button" style="position: absolute; right:0px; top: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateY(-50%) rotate(90deg);" src="`+UpArrow.src+`"/>
                 <img id="down-button" style="position: absolute; bottom:0px;left: 50%; width: 50px; cursor: pointer; height: 50px; transform: translateX(-50%) rotate(180deg);" src="`+UpArrow.src+`"/>
-                <button id="stop-button" class="ptz-stop-button" type="button" title="Stop PTZ movement">STOP</button>
+                <img id="stop-button" class="ptz-stop-button" style="position: absolute; width: 50px; height: 50px; cursor: pointer; left: 50%; top: 50%; transform: translate(-50%, -50%);" title="Stop PTZ movement" alt="Stop PTZ movement" src="data:image/svg+xml,%3Csvg width='128' height='128' viewBox='0 0 128 128' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cmask id='stopMask'%3E%3Crect width='128' height='128' rx='22' fill='white'/%3E%3Crect x='39' y='39' width='50' height='50' rx='4' fill='black'/%3E%3C/mask%3E%3Crect width='128' height='128' rx='22' fill='%23C71724' mask='url(%23stopMask)'/%3E%3C/svg%3E"/>
                
             </div>
             <select id="ptz-movement-select" class="ptz-movement-select" title="PTZ movement type">
