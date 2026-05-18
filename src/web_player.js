@@ -580,6 +580,8 @@ export class WebPlayer {
 	    
         this.restJwt = getUrlParameter("restJwt", this.window.location.search) || this.restJwt;
 
+        this.isIPCamera = (getUrlParameter("isIPCamera", this.window.location.search) === "true") || this.isIPCamera;
+
         this.ptzValueStep = getUrlParameter("ptzValueStep", this.window.location.search) || this.ptzValueStep;
 
         this.ptzMovement = getUrlParameter("ptzMovement", this.window.location.search) || this.ptzMovement;
