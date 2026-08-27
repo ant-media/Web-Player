@@ -5,16 +5,23 @@ on:
     tags:
       - ams-v**
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   publish-npmjs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24.x'
+          node-version: '22.14.0'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: setup npm for trusted publishing
+        run: npm install -g npm@11.5.1
       
       - uses: actions/setup-java@v3
         with:
@@ -25,15 +32,13 @@ jobs:
         id: get_version
         run: echo "VERSION=$(echo ${GITHUB_REF##*/} | cut -d v -f 2)" >> $GITHUB_OUTPUT
       
-      - run: npm install
+      - run: npm ci --no-audit
       
       - run: npm run compile
       
       - run: npm test
       
       - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       
       - name: Update Embedded Player
         if: success()
