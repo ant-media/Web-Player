@@ -250,9 +250,68 @@ describe("WebPlayer", function() {
 		var fullWebSocketUrl = player.getWebsocketURLForStream(player.streamId);
 		expect(fullWebSocketUrl).to.be.equal('ws://example.antmedia.io:5080/WebRTCAppEE/streamConfig123.webrtc');
 		
-	});
-	
-	it("loadComponents", async function(){
+		});
+
+		it("uses-language-for-placeholder-hls-audio-track-names", async function() {
+			var videoContainer = document.createElement("video_container");
+			var placeHolder = document.createElement("place_holder");
+			var locationComponent = { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
+			var windowComponent = { location : locationComponent, document: document};
+			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+			player.hlsPlayer = {
+				audioTracks: [
+					{ name: "audio_1", lang: "eng" },
+					{ name: "audio_2", lang: "tur" },
+					{ name: "Commentary", lang: "eng" },
+					{ name: "audio_3" }
+				]
+			};
+
+			player.useLanguageAsHlsAudioTrackName();
+
+			expect(player.hlsPlayer.audioTracks[0].name).to.be.equal("eng");
+			expect(player.hlsPlayer.audioTracks[1].name).to.be.equal("tur");
+			expect(player.hlsPlayer.audioTracks[2].name).to.be.equal("Commentary");
+			expect(player.hlsPlayer.audioTracks[3].name).to.be.equal("audio_3");
+		});
+
+		it("uses-language-for-placeholder-videojs-audio-track-labels", async function() {
+			var videoContainer = document.createElement("video_container");
+			var placeHolder = document.createElement("place_holder");
+			var locationComponent = { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
+			var windowComponent = { location : locationComponent, document: document};
+			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+			var addTrackListener;
+			var audioTracks = [
+				{ label: "audio_1", language: "eng" },
+				{ label: "Custom Audio", language: "tur" },
+				{ label: "audio_2" }
+			];
+			audioTracks.addEventListener = function(event, listener) {
+				if (event === "addtrack") {
+					addTrackListener = listener;
+				}
+			};
+
+			player.videojsPlayer = {
+				audioTracks: function() {
+					return audioTracks;
+				}
+			};
+
+			player.listenForVideoJSAudioTracks();
+
+			expect(audioTracks[0].label).to.be.equal("eng");
+			expect(audioTracks[1].label).to.be.equal("Custom Audio");
+			expect(audioTracks[2].label).to.be.equal("audio_2");
+
+			var addedTrack = { label: "audio_3", language: "tur" };
+			addTrackListener({ track: addedTrack });
+			expect(addedTrack.label).to.be.equal("tur");
+		});
+		
+		it("loadComponents", async function(){
 			
 	    this.timeout(10000);
 		var videoContainer = document.createElement("video_container");

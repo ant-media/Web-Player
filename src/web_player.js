@@ -932,6 +932,7 @@ export class WebPlayer {
 	            });
 	        });
 
+            this.listenForVideoJSAudioTracks();
             this.listenForID3MetaData()
         }
 
@@ -1101,6 +1102,47 @@ export class WebPlayer {
                 });
             }
         });
+    }
+
+    useLanguageAsHlsAudioTrackName() {
+        if (!this.hlsPlayer || !this.hlsPlayer.audioTracks) {
+            return;
+        }
+
+        this.hlsPlayer.audioTracks.forEach((audioTrack) => {
+            if (audioTrack && /^audio_\d+$/.test(audioTrack.name) && audioTrack.lang) {
+                audioTrack.name = audioTrack.lang;
+            }
+        });
+    }
+
+    useLanguageAsVideoJSAudioTrackLabel(audioTrack) {
+        if (audioTrack && /^audio_\d+$/.test(audioTrack.label) && audioTrack.language) {
+            audioTrack.label = audioTrack.language;
+        }
+    }
+
+    useLanguageAsVideoJSAudioTrackLabels() {
+        if (!this.videojsPlayer || typeof this.videojsPlayer.audioTracks !== "function") {
+            return;
+        }
+
+        const audioTracks = this.videojsPlayer.audioTracks();
+        for (let i = 0; i < audioTracks.length; i++) {
+            this.useLanguageAsVideoJSAudioTrackLabel(audioTracks[i]);
+        }
+    }
+
+    listenForVideoJSAudioTracks() {
+        if (!this.videojsPlayer || typeof this.videojsPlayer.audioTracks !== "function") {
+            return;
+        }
+
+        const audioTracks = this.videojsPlayer.audioTracks();
+        audioTracks.addEventListener('addtrack', (event) => {
+            this.useLanguageAsVideoJSAudioTrackLabel(event.track);
+        });
+        this.useLanguageAsVideoJSAudioTrackLabels();
     }
 
     makeVideoJSVisibleWhenReady() {
@@ -1439,6 +1481,7 @@ export class WebPlayer {
 
             this.hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, () => {
                 Logger.info("hls.js manifest parsed, starting playback");
+                this.useLanguageAsHlsAudioTrackName();
                 this.setPlayerVisible(true);
                 if (this.autoPlay) {
                     Logger.warn("Attempting to autoplay with hls.js");
