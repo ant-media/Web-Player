@@ -259,10 +259,14 @@ describe("WebPlayer", function() {
 			var windowComponent = { location : locationComponent, document: document};
 			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 
+			player.hlsAudioTrackLanguageMap = {
+				audio_1: "eng",
+				audio_2: "tur"
+			};
 			player.hlsPlayer = {
 				audioTracks: [
-					{ name: "audio_1", lang: "eng" },
-					{ name: "audio_2", lang: "tur" },
+					{ name: "audio_1" },
+					{ name: "audio_2" },
 					{ name: "Commentary", lang: "eng" },
 					{ name: "audio_3" }
 				]
@@ -283,8 +287,14 @@ describe("WebPlayer", function() {
 			var windowComponent = { location : locationComponent, document: document};
 			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 			var addTrackListener;
+			player.hlsAudioTrackLanguageMap = player.parseHlsAudioTrackLanguages(
+				'#EXTM3U\n' +
+				'#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="group_audio",NAME="audio_1",DEFAULT=YES,LANGUAGE="eng",CHANNELS="2",URI="test_eng.m3u8"\n' +
+				'#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="group_audio",NAME="audio_2",DEFAULT=NO,LANGUAGE="tur",CHANNELS="2",URI="test_tur.m3u8"\n' +
+				'#EXT-X-STREAM-INF:BANDWIDTH=138552,AUDIO="group_audio"'
+			);
 			var audioTracks = [
-				{ label: "audio_1", language: "eng" },
+				{ label: "audio_1" },
 				{ label: "Custom Audio", language: "tur" },
 				{ label: "audio_2" }
 			];
@@ -304,9 +314,9 @@ describe("WebPlayer", function() {
 
 			expect(audioTracks[0].label).to.be.equal("eng");
 			expect(audioTracks[1].label).to.be.equal("Custom Audio");
-			expect(audioTracks[2].label).to.be.equal("audio_2");
+			expect(audioTracks[2].label).to.be.equal("tur");
 
-			var addedTrack = { label: "audio_3", language: "tur" };
+			var addedTrack = { label: "audio_2" };
 			addTrackListener({ track: addedTrack });
 			expect(addedTrack.label).to.be.equal("tur");
 		});

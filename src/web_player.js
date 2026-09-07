@@ -521,6 +521,7 @@ export class WebPlayer {
         this.end = null;
         this.withCredentials = true;
         this.hlsPlayer = null;
+        this.hlsAudioTrackLanguageMap = {};
         this.hlsjsTriedForThisStream = false;
         this.currentHlsUrl = null;
         this.player = "videojs";
@@ -903,6 +904,7 @@ export class WebPlayer {
 		//hls specific calls
 		if (extension == "m3u8") 
         {    
+            this.loadHlsAudioTrackLanguageMap(streamUrl);
             this.videojsPlayer.on('xhr-hooks-ready', () => {
                     this.videojsPlayer.ready(() => {
                         // tech is ready after ready event
@@ -1110,15 +1112,21 @@ export class WebPlayer {
         }
 
         this.hlsPlayer.audioTracks.forEach((audioTrack) => {
-            if (audioTrack && /^audio_\d+$/.test(audioTrack.name) && audioTrack.lang) {
-                audioTrack.name = audioTrack.lang;
+            if (audioTrack && /^audio_\d+$/.test(audioTrack.name)) {
+                const language = this.hlsAudioTrackLanguageMap[audioTrack.name] || audioTrack.lang;
+                if (language) {
+                    audioTrack.name = language;
+                }
             }
         });
     }
 
     useLanguageAsVideoJSAudioTrackLabel(audioTrack) {
-        if (audioTrack && /^audio_\d+$/.test(audioTrack.label) && audioTrack.language) {
-            audioTrack.label = audioTrack.language;
+        if (audioTrack && /^audio_\d+$/.test(audioTrack.label)) {
+            const language = this.hlsAudioTrackLanguageMap[audioTrack.label] || audioTrack.language;
+            if (language) {
+                audioTrack.label = language;
+            }
         }
     }
 
@@ -1143,6 +1151,53 @@ export class WebPlayer {
             this.useLanguageAsVideoJSAudioTrackLabel(event.track);
         });
         this.useLanguageAsVideoJSAudioTrackLabels();
+    }
+
+    loadHlsAudioTrackLanguageMap(streamUrl) {
+        const fetchFunction = this.window?.fetch || fetch;
+        if (typeof fetchFunction !== "function") {
+            return;
+        }
+
+        fetchFunction(streamUrl, {
+            credentials: this.withCredentials ? "include" : "same-origin"
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error("Cannot load HLS manifest. Status: " + response.status);
+            }
+            return response.text();
+        }).then((manifestContent) => {
+            this.hlsAudioTrackLanguageMap = this.parseHlsAudioTrackLanguages(manifestContent);
+            this.useLanguageAsVideoJSAudioTrackLabels();
+            this.useLanguageAsHlsAudioTrackName();
+        }).catch((error) => {
+            Logger.warn("Cannot update HLS audio track names from manifest: " + error);
+        });
+    }
+
+    parseHlsAudioTrackLanguages(manifestContent) {
+        const audioTrackLanguageMap = {};
+        manifestContent.split(/\r?\n/).forEach((line) => {
+            if (!line.startsWith("#EXT-X-MEDIA:")) {
+                return;
+            }
+
+            const attributes = this.parseHlsMediaAttributes(line.substring("#EXT-X-MEDIA:".length));
+            if (attributes["TYPE"] === "AUDIO" && attributes["NAME"] && attributes["LANGUAGE"]) {
+                audioTrackLanguageMap[attributes["NAME"]] = attributes["LANGUAGE"];
+            }
+        });
+        return audioTrackLanguageMap;
+    }
+
+    parseHlsMediaAttributes(attributeList) {
+        const attributes = {};
+        const attributeRegex = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/g;
+        let match;
+        while ((match = attributeRegex.exec(attributeList)) !== null) {
+            attributes[match[1]] = match[2].replace(/^"|"$/g, "");
+        }
+        return attributes;
     }
 
     makeVideoJSVisibleWhenReady() {
@@ -1462,6 +1517,7 @@ export class WebPlayer {
 
         if (window.Hls && window.Hls.isSupported()) {
             Logger.info("Playing with hls.js: " + streamUrl);
+            this.loadHlsAudioTrackLanguageMap(streamUrl);
             
             this.hlsPlayer = new window.Hls({
                 debug: false,
