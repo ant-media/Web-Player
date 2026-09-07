@@ -522,6 +522,7 @@ export class WebPlayer {
         this.withCredentials = true;
         this.hlsPlayer = null;
         this.hlsAudioTrackLanguageMap = {};
+        this.videojsHlsManifestListenerAdded = false;
         this.hlsjsTriedForThisStream = false;
         this.currentHlsUrl = null;
         this.player = "videojs";
@@ -934,6 +935,9 @@ export class WebPlayer {
 	            });
 	        });
 
+            this.videojsPlayer.on('loadedmetadata', () => {
+                this.listenForVideoJSHlsManifest();
+            });
             this.listenForVideoJSAudioTracks();
             this.listenForID3MetaData()
         }
@@ -1160,6 +1164,7 @@ export class WebPlayer {
 
         const playlists = this.videojsPlayer.tech()?.vhs?.playlists;
         if (!playlists) {
+            this.useLanguageAsVideoJSAudioTrackLabels();
             return;
         }
 
@@ -1168,8 +1173,9 @@ export class WebPlayer {
             this.useLanguageAsVideoJSAudioTrackLabels();
         };
 
-        if (typeof playlists.on === "function") {
+        if (!this.videojsHlsManifestListenerAdded && typeof playlists.on === "function") {
             playlists.on("loadedplaylist", updateAudioTrackLabels);
+            this.videojsHlsManifestListenerAdded = true;
         }
         updateAudioTrackLabels();
     }
