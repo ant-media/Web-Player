@@ -1127,11 +1127,18 @@ export class WebPlayer {
 
     useLanguageAsVideoJSAudioTrackLabel(audioTrack) {
         if (audioTrack && /^audio_\d+$/.test(audioTrack.label)) {
-            const language = this.hlsAudioTrackLanguageMap[audioTrack.label] || audioTrack.language;
+            const language = this.getVideoJSAudioTrackLanguage(audioTrack);
             if (language) {
                 audioTrack.label = language;
             }
         }
+    }
+
+    getVideoJSAudioTrackLanguage(audioTrack) {
+        return this.hlsAudioTrackLanguageMap[audioTrack?.label] ||
+            this.hlsAudioTrackLanguageMap[audioTrack?.id] ||
+            this.hlsAudioTrackLanguageMap[audioTrack?.name] ||
+            audioTrack?.language;
     }
 
     useLanguageAsVideoJSAudioTrackLabels() {
@@ -1143,6 +1150,7 @@ export class WebPlayer {
         for (let i = 0; i < audioTracks.length; i++) {
             this.useLanguageAsVideoJSAudioTrackLabel(audioTracks[i]);
         }
+        this.refreshVideoJSAudioTrackMenuLabels();
     }
 
     listenForVideoJSAudioTracks() {
@@ -1153,8 +1161,35 @@ export class WebPlayer {
         const audioTracks = this.videojsPlayer.audioTracks();
         audioTracks.addEventListener('addtrack', (event) => {
             this.useLanguageAsVideoJSAudioTrackLabel(event.track);
+            this.refreshVideoJSAudioTrackMenuLabels();
         });
         this.useLanguageAsVideoJSAudioTrackLabels();
+    }
+
+    refreshVideoJSAudioTrackMenuLabels() {
+        const audioTrackButton = this.videojsPlayer?.controlBar?.audioTrackButton;
+        if (!audioTrackButton) {
+            return;
+        }
+
+        if (typeof audioTrackButton.update === "function") {
+            audioTrackButton.update();
+        }
+
+        const items = audioTrackButton.items || [];
+        items.forEach((item) => {
+            const track = item.track || item.options_?.track;
+            const label = this.getVideoJSAudioTrackLanguage(track);
+            if (!label || !/^audio_\d+$/.test(item.options_?.label || "")) {
+                return;
+            }
+
+            item.options_.label = label;
+            const itemText = typeof item.$ === "function" ? item.$(".vjs-menu-item-text") : null;
+            if (itemText) {
+                itemText.textContent = label;
+            }
+        });
     }
 
     listenForVideoJSHlsManifest() {

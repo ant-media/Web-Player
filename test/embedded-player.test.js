@@ -287,10 +287,13 @@ describe("WebPlayer", function() {
 			var windowComponent = { location : locationComponent, document: document};
 			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 			var addTrackListener;
+			var audioTrackButtonUpdated = false;
+			var firstMenuItemText = { textContent: "audio_1" };
+			var secondMenuItemText = { textContent: "audio_2" };
 			var audioTracks = [
-				{ label: "audio_1" },
+				{ id: "audio_1", label: "audio_1" },
 				{ label: "Custom Audio", language: "tur" },
-				{ label: "audio_2" }
+				{ id: "audio_2", label: "audio_2" }
 			];
 			audioTracks.addEventListener = function(event, listener) {
 				if (event === "addtrack") {
@@ -324,6 +327,29 @@ describe("WebPlayer", function() {
 							}
 						}
 					};
+				},
+				controlBar: {
+					audioTrackButton: {
+						update: function() {
+							audioTrackButtonUpdated = true;
+						},
+						items: [
+							{
+								track: audioTracks[0],
+								options_: { label: "audio_1" },
+								$: function() {
+									return firstMenuItemText;
+								}
+							},
+							{
+								track: audioTracks[2],
+								options_: { label: "audio_2" },
+								$: function() {
+									return secondMenuItemText;
+								}
+							}
+						]
+					}
 				}
 			};
 
@@ -333,8 +359,11 @@ describe("WebPlayer", function() {
 			expect(audioTracks[0].label).to.be.equal("eng");
 			expect(audioTracks[1].label).to.be.equal("Custom Audio");
 			expect(audioTracks[2].label).to.be.equal("tur");
+			expect(audioTrackButtonUpdated).to.be.true;
+			expect(firstMenuItemText.textContent).to.be.equal("eng");
+			expect(secondMenuItemText.textContent).to.be.equal("tur");
 
-			var addedTrack = { label: "audio_2" };
+			var addedTrack = { id: "audio_2", label: "audio_2" };
 			addTrackListener({ track: addedTrack });
 			expect(addedTrack.label).to.be.equal("tur");
 		});
