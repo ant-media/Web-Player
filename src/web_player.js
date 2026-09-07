@@ -521,6 +521,8 @@ export class WebPlayer {
         this.end = null;
         this.withCredentials = true;
         this.hlsPlayer = null;
+        this.hlsAudioTrackLanguageMap = {};
+        this.videojsHlsManifestListenerAdded = false;
         this.hlsjsTriedForThisStream = false;
         this.currentHlsUrl = null;
         this.player = "videojs";
@@ -918,6 +920,7 @@ export class WebPlayer {
 	                    displayCurrentQuality: true,
 	                });
 	            }
+                this.listenForVideoJSHlsManifest();
 
 	            // If there is no adaptive option in m3u8 no need to show quality selector
 	            let qualityLevels = this.videojsPlayer.qualityLevels();
@@ -932,6 +935,10 @@ export class WebPlayer {
 	            });
 	        });
 
+            this.videojsPlayer.on('loadedmetadata', () => {
+                this.listenForVideoJSHlsManifest();
+            });
+            this.listenForVideoJSAudioTracks();
             this.listenForID3MetaData()
         }
 
@@ -1099,6 +1106,139 @@ export class WebPlayer {
                     }
                     Logger.info("ID3 Meta Data Received: " + id3DataText);
                 });
+            }
+        });
+    }
+
+    useLanguageAsHlsAudioTrackName() {
+        if (!this.hlsPlayer || !this.hlsPlayer.audioTracks) {
+            return;
+        }
+
+        this.hlsPlayer.audioTracks.forEach((audioTrack) => {
+            if (audioTrack && /^audio_\d+$/.test(audioTrack.name)) {
+                const language = this.hlsAudioTrackLanguageMap[audioTrack.name] || audioTrack.lang;
+                if (language) {
+                    audioTrack.name = language;
+                }
+            }
+        });
+    }
+
+    useLanguageAsVideoJSAudioTrackLabel(audioTrack) {
+        if (audioTrack && /^audio_\d+$/.test(audioTrack.label)) {
+            const language = this.getVideoJSAudioTrackLanguage(audioTrack);
+            if (language) {
+                audioTrack.label = language;
+            }
+        }
+    }
+
+    getVideoJSAudioTrackLanguage(audioTrack) {
+        return this.hlsAudioTrackLanguageMap[audioTrack?.label] ||
+            this.hlsAudioTrackLanguageMap[audioTrack?.id] ||
+            this.hlsAudioTrackLanguageMap[audioTrack?.name] ||
+            audioTrack?.language;
+    }
+
+    useLanguageAsVideoJSAudioTrackLabels() {
+        if (!this.videojsPlayer || typeof this.videojsPlayer.audioTracks !== "function") {
+            return;
+        }
+
+        const audioTracks = this.videojsPlayer.audioTracks();
+        for (let i = 0; i < audioTracks.length; i++) {
+            this.useLanguageAsVideoJSAudioTrackLabel(audioTracks[i]);
+        }
+        this.refreshVideoJSAudioTrackMenuLabels();
+    }
+
+    listenForVideoJSAudioTracks() {
+        if (!this.videojsPlayer || typeof this.videojsPlayer.audioTracks !== "function") {
+            return;
+        }
+
+        const audioTracks = this.videojsPlayer.audioTracks();
+        audioTracks.addEventListener('addtrack', (event) => {
+            this.useLanguageAsVideoJSAudioTrackLabel(event.track);
+            this.refreshVideoJSAudioTrackMenuLabels();
+        });
+        this.useLanguageAsVideoJSAudioTrackLabels();
+    }
+
+    refreshVideoJSAudioTrackMenuLabels() {
+        const audioTrackButton = this.videojsPlayer?.controlBar?.audioTrackButton;
+        if (!audioTrackButton) {
+            return;
+        }
+
+        if (typeof audioTrackButton.update === "function") {
+            audioTrackButton.update();
+        }
+
+        const items = audioTrackButton.items || [];
+        items.forEach((item) => {
+            const track = item.track || item.options_?.track;
+            const label = this.getVideoJSAudioTrackLanguage(track);
+            if (!label || !/^audio_\d+$/.test(item.options_?.label || "")) {
+                return;
+            }
+
+            item.options_.label = label;
+            const itemText = typeof item.$ === "function" ? item.$(".vjs-menu-item-text") : null;
+            if (itemText) {
+                itemText.textContent = label;
+            }
+        });
+    }
+
+    listenForVideoJSHlsManifest() {
+        if (!this.videojsPlayer || typeof this.videojsPlayer.tech !== "function") {
+            return;
+        }
+
+        const playlists = this.videojsPlayer.tech()?.vhs?.playlists;
+        if (!playlists) {
+            this.useLanguageAsVideoJSAudioTrackLabels();
+            return;
+        }
+
+        const updateAudioTrackLabels = () => {
+            this.updateHlsAudioTrackLanguageMapFromManifest(playlists.main);
+            this.useLanguageAsVideoJSAudioTrackLabels();
+        };
+
+        if (!this.videojsHlsManifestListenerAdded && typeof playlists.on === "function") {
+            playlists.on("loadedplaylist", updateAudioTrackLabels);
+            this.videojsHlsManifestListenerAdded = true;
+        }
+        updateAudioTrackLabels();
+    }
+
+    updateHlsAudioTrackLanguageMapFromManifest(manifest) {
+        const audioGroups = manifest?.mediaGroups?.AUDIO;
+        if (!audioGroups) {
+            return;
+        }
+
+        Object.keys(audioGroups).forEach((groupId) => {
+            Object.keys(audioGroups[groupId]).forEach((label) => {
+                const language = audioGroups[groupId][label]?.language;
+                if (language) {
+                    this.hlsAudioTrackLanguageMap[label] = language;
+                }
+            });
+        });
+    }
+
+    updateHlsAudioTrackLanguageMapFromHlsJsAudioTracks(audioTracks) {
+        if (!audioTracks) {
+            return;
+        }
+
+        audioTracks.forEach((audioTrack) => {
+            if (audioTrack?.name && audioTrack.lang) {
+                this.hlsAudioTrackLanguageMap[audioTrack.name] = audioTrack.lang;
             }
         });
     }
@@ -1437,8 +1577,10 @@ export class WebPlayer {
             this.hlsPlayer.loadSource(streamUrl);
             this.hlsPlayer.attachMedia(video);
 
-            this.hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, () => {
+            this.hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, (event, data) => {
                 Logger.info("hls.js manifest parsed, starting playback");
+                this.updateHlsAudioTrackLanguageMapFromHlsJsAudioTracks(data?.audioTracks || this.hlsPlayer.audioTracks);
+                this.useLanguageAsHlsAudioTrackName();
                 this.setPlayerVisible(true);
                 if (this.autoPlay) {
                     Logger.warn("Attempting to autoplay with hls.js");

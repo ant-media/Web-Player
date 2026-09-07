@@ -250,9 +250,125 @@ describe("WebPlayer", function() {
 		var fullWebSocketUrl = player.getWebsocketURLForStream(player.streamId);
 		expect(fullWebSocketUrl).to.be.equal('ws://example.antmedia.io:5080/WebRTCAppEE/streamConfig123.webrtc');
 		
-	});
-	
-	it("loadComponents", async function(){
+		});
+
+		it("uses-language-for-placeholder-hls-audio-track-names", async function() {
+			var videoContainer = document.createElement("video_container");
+			var placeHolder = document.createElement("place_holder");
+			var locationComponent = { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
+			var windowComponent = { location : locationComponent, document: document};
+			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+
+			player.hlsAudioTrackLanguageMap = {
+				audio_1: "eng",
+				audio_2: "tur"
+			};
+			player.hlsPlayer = {
+				audioTracks: [
+					{ name: "audio_1" },
+					{ name: "audio_2" },
+					{ name: "Commentary", lang: "eng" },
+					{ name: "audio_3" }
+				]
+			};
+
+			player.useLanguageAsHlsAudioTrackName();
+
+			expect(player.hlsPlayer.audioTracks[0].name).to.be.equal("eng");
+			expect(player.hlsPlayer.audioTracks[1].name).to.be.equal("tur");
+			expect(player.hlsPlayer.audioTracks[2].name).to.be.equal("Commentary");
+			expect(player.hlsPlayer.audioTracks[3].name).to.be.equal("audio_3");
+		});
+
+		it("uses-language-for-placeholder-videojs-audio-track-labels", async function() {
+			var videoContainer = document.createElement("video_container");
+			var placeHolder = document.createElement("place_holder");
+			var locationComponent = { href : 'http://example.com?id=stream123', search: "?id=stream123", pathname:"/" , protocol:"http:"};
+			var windowComponent = { location : locationComponent, document: document};
+			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
+			var addTrackListener;
+			var audioTrackButtonUpdated = false;
+			var firstMenuItemText = { textContent: "audio_1" };
+			var secondMenuItemText = { textContent: "audio_2" };
+			var audioTracks = [
+				{ id: "audio_1", label: "audio_1" },
+				{ label: "Custom Audio", language: "tur" },
+				{ id: "audio_2", label: "audio_2" }
+			];
+			audioTracks.addEventListener = function(event, listener) {
+				if (event === "addtrack") {
+					addTrackListener = listener;
+				}
+			};
+
+			player.videojsPlayer = {
+				audioTracks: function() {
+					return audioTracks;
+				},
+				tech: function() {
+					return {
+						vhs: {
+							playlists: {
+								main: {
+									mediaGroups: {
+										AUDIO: {
+											group_audio: {
+												audio_1: { language: "eng" },
+												audio_2: { language: "tur" }
+											}
+										}
+									}
+								},
+								on: function(event, listener) {
+									if (event === "loadedplaylist") {
+										listener();
+									}
+								}
+							}
+						}
+					};
+				},
+				controlBar: {
+					audioTrackButton: {
+						update: function() {
+							audioTrackButtonUpdated = true;
+						},
+						items: [
+							{
+								track: audioTracks[0],
+								options_: { label: "audio_1" },
+								$: function() {
+									return firstMenuItemText;
+								}
+							},
+							{
+								track: audioTracks[2],
+								options_: { label: "audio_2" },
+								$: function() {
+									return secondMenuItemText;
+								}
+							}
+						]
+					}
+				}
+			};
+
+			player.listenForVideoJSHlsManifest();
+			player.listenForVideoJSAudioTracks();
+
+			expect(audioTracks[0].label).to.be.equal("eng");
+			expect(audioTracks[1].label).to.be.equal("Custom Audio");
+			expect(audioTracks[2].label).to.be.equal("tur");
+			expect(audioTrackButtonUpdated).to.be.true;
+			expect(firstMenuItemText.textContent).to.be.equal("eng");
+			expect(secondMenuItemText.textContent).to.be.equal("tur");
+
+			var addedTrack = { id: "audio_2", label: "audio_2" };
+			addTrackListener({ track: addedTrack });
+			expect(addedTrack.label).to.be.equal("tur");
+		});
+		
+		it("loadComponents", async function(){
 			
 	    this.timeout(10000);
 		var videoContainer = document.createElement("video_container");
@@ -1254,8 +1370,14 @@ describe("WebPlayer", function() {
 
 		// Simulate MANIFEST_PARSED event
 		var manifestParsedCallback = hlsMock.on.args.find(arg => arg[0] === 'MANIFEST_PARSED')[1];
-		manifestParsedCallback();
+		hlsMock.audioTracks = [
+			{ name: "audio_1", lang: "eng" },
+			{ name: "audio_2", lang: "tur" }
+		];
+		manifestParsedCallback("MANIFEST_PARSED", { audioTracks: hlsMock.audioTracks });
 		expect(setPlayerVisible.calledWith(true)).to.be.true;
+		expect(hlsMock.audioTracks[0].name).to.be.equal("eng");
+		expect(hlsMock.audioTracks[1].name).to.be.equal("tur");
 
 		// Simulate ERROR event
 		var errorCallback = hlsMock.on.args.find(arg => arg[0] === 'ERROR')[1];
