@@ -904,7 +904,6 @@ export class WebPlayer {
 		//hls specific calls
 		if (extension == "m3u8") 
         {    
-            this.loadHlsAudioTrackLanguageMap(streamUrl);
             this.videojsPlayer.on('xhr-hooks-ready', () => {
                     this.videojsPlayer.ready(() => {
                         // tech is ready after ready event
@@ -920,6 +919,7 @@ export class WebPlayer {
 	                    displayCurrentQuality: true,
 	                });
 	            }
+                this.listenForVideoJSHlsManifest();
 
 	            // If there is no adaptive option in m3u8 no need to show quality selector
 	            let qualityLevels = this.videojsPlayer.qualityLevels();
@@ -1153,51 +1153,53 @@ export class WebPlayer {
         this.useLanguageAsVideoJSAudioTrackLabels();
     }
 
-    loadHlsAudioTrackLanguageMap(streamUrl) {
-        const fetchFunction = this.window?.fetch || fetch;
-        if (typeof fetchFunction !== "function") {
+    listenForVideoJSHlsManifest() {
+        if (!this.videojsPlayer || typeof this.videojsPlayer.tech !== "function") {
             return;
         }
 
-        fetchFunction(streamUrl, {
-            credentials: this.withCredentials ? "include" : "same-origin"
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error("Cannot load HLS manifest. Status: " + response.status);
-            }
-            return response.text();
-        }).then((manifestContent) => {
-            this.hlsAudioTrackLanguageMap = this.parseHlsAudioTrackLanguages(manifestContent);
-            this.useLanguageAsVideoJSAudioTrackLabels();
-            this.useLanguageAsHlsAudioTrackName();
-        }).catch((error) => {
-            Logger.warn("Cannot update HLS audio track names from manifest: " + error);
-        });
-    }
-
-    parseHlsAudioTrackLanguages(manifestContent) {
-        const audioTrackLanguageMap = {};
-        manifestContent.split(/\r?\n/).forEach((line) => {
-            if (!line.startsWith("#EXT-X-MEDIA:")) {
-                return;
-            }
-
-            const attributes = this.parseHlsMediaAttributes(line.substring("#EXT-X-MEDIA:".length));
-            if (attributes["TYPE"] === "AUDIO" && attributes["NAME"] && attributes["LANGUAGE"]) {
-                audioTrackLanguageMap[attributes["NAME"]] = attributes["LANGUAGE"];
-            }
-        });
-        return audioTrackLanguageMap;
-    }
-
-    parseHlsMediaAttributes(attributeList) {
-        const attributes = {};
-        const attributeRegex = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/g;
-        let match;
-        while ((match = attributeRegex.exec(attributeList)) !== null) {
-            attributes[match[1]] = match[2].replace(/^"|"$/g, "");
+        const playlists = this.videojsPlayer.tech()?.vhs?.playlists;
+        if (!playlists) {
+            return;
         }
-        return attributes;
+
+        const updateAudioTrackLabels = () => {
+            this.updateHlsAudioTrackLanguageMapFromManifest(playlists.main);
+            this.useLanguageAsVideoJSAudioTrackLabels();
+        };
+
+        if (typeof playlists.on === "function") {
+            playlists.on("loadedplaylist", updateAudioTrackLabels);
+        }
+        updateAudioTrackLabels();
+    }
+
+    updateHlsAudioTrackLanguageMapFromManifest(manifest) {
+        const audioGroups = manifest?.mediaGroups?.AUDIO;
+        if (!audioGroups) {
+            return;
+        }
+
+        Object.keys(audioGroups).forEach((groupId) => {
+            Object.keys(audioGroups[groupId]).forEach((label) => {
+                const language = audioGroups[groupId][label]?.language;
+                if (language) {
+                    this.hlsAudioTrackLanguageMap[label] = language;
+                }
+            });
+        });
+    }
+
+    updateHlsAudioTrackLanguageMapFromHlsJsAudioTracks(audioTracks) {
+        if (!audioTracks) {
+            return;
+        }
+
+        audioTracks.forEach((audioTrack) => {
+            if (audioTrack?.name && audioTrack.lang) {
+                this.hlsAudioTrackLanguageMap[audioTrack.name] = audioTrack.lang;
+            }
+        });
     }
 
     makeVideoJSVisibleWhenReady() {
@@ -1517,7 +1519,6 @@ export class WebPlayer {
 
         if (window.Hls && window.Hls.isSupported()) {
             Logger.info("Playing with hls.js: " + streamUrl);
-            this.loadHlsAudioTrackLanguageMap(streamUrl);
             
             this.hlsPlayer = new window.Hls({
                 debug: false,
@@ -1535,8 +1536,9 @@ export class WebPlayer {
             this.hlsPlayer.loadSource(streamUrl);
             this.hlsPlayer.attachMedia(video);
 
-            this.hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, () => {
+            this.hlsPlayer.on(window.Hls.Events.MANIFEST_PARSED, (event, data) => {
                 Logger.info("hls.js manifest parsed, starting playback");
+                this.updateHlsAudioTrackLanguageMapFromHlsJsAudioTracks(data?.audioTracks || this.hlsPlayer.audioTracks);
                 this.useLanguageAsHlsAudioTrackName();
                 this.setPlayerVisible(true);
                 if (this.autoPlay) {

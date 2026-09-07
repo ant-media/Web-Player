@@ -287,12 +287,6 @@ describe("WebPlayer", function() {
 			var windowComponent = { location : locationComponent, document: document};
 			var player = new WebPlayer(windowComponent, videoContainer, placeHolder);
 			var addTrackListener;
-			player.hlsAudioTrackLanguageMap = player.parseHlsAudioTrackLanguages(
-				'#EXTM3U\n' +
-				'#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="group_audio",NAME="audio_1",DEFAULT=YES,LANGUAGE="eng",CHANNELS="2",URI="test_eng.m3u8"\n' +
-				'#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="group_audio",NAME="audio_2",DEFAULT=NO,LANGUAGE="tur",CHANNELS="2",URI="test_tur.m3u8"\n' +
-				'#EXT-X-STREAM-INF:BANDWIDTH=138552,AUDIO="group_audio"'
-			);
 			var audioTracks = [
 				{ label: "audio_1" },
 				{ label: "Custom Audio", language: "tur" },
@@ -307,9 +301,33 @@ describe("WebPlayer", function() {
 			player.videojsPlayer = {
 				audioTracks: function() {
 					return audioTracks;
+				},
+				tech: function() {
+					return {
+						vhs: {
+							playlists: {
+								main: {
+									mediaGroups: {
+										AUDIO: {
+											group_audio: {
+												audio_1: { language: "eng" },
+												audio_2: { language: "tur" }
+											}
+										}
+									}
+								},
+								on: function(event, listener) {
+									if (event === "loadedplaylist") {
+										listener();
+									}
+								}
+							}
+						}
+					};
 				}
 			};
 
+			player.listenForVideoJSHlsManifest();
 			player.listenForVideoJSAudioTracks();
 
 			expect(audioTracks[0].label).to.be.equal("eng");
@@ -1323,8 +1341,14 @@ describe("WebPlayer", function() {
 
 		// Simulate MANIFEST_PARSED event
 		var manifestParsedCallback = hlsMock.on.args.find(arg => arg[0] === 'MANIFEST_PARSED')[1];
-		manifestParsedCallback();
+		hlsMock.audioTracks = [
+			{ name: "audio_1", lang: "eng" },
+			{ name: "audio_2", lang: "tur" }
+		];
+		manifestParsedCallback("MANIFEST_PARSED", { audioTracks: hlsMock.audioTracks });
 		expect(setPlayerVisible.calledWith(true)).to.be.true;
+		expect(hlsMock.audioTracks[0].name).to.be.equal("eng");
+		expect(hlsMock.audioTracks[1].name).to.be.equal("tur");
 
 		// Simulate ERROR event
 		var errorCallback = hlsMock.on.args.find(arg => arg[0] === 'ERROR')[1];
